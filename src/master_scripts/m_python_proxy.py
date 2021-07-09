@@ -1787,9 +1787,9 @@ def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
         # Submit job to queue (qsub)
         # cmd_status = Popen('qsub ' + comp_name + '.sh', shell=True, stdout=PIPE)
         # submit job to queue (sbatch)
-        # cmd_status = Popen('sbatch ' + comp_name + '.sh', shell=True, stdout=PIPE)
+        cmd_status = Popen('sbatch ' + comp_name + '.sh', shell=True, stdout=PIPE)
         # submit job to queue (bsub)
-        cmd_status = Popen('bsub ' + comp_name + '.lsf', shell=True, stdout=PIPE)
+        #cmd_status = Popen('bsub ' + comp_name + '.lsf', shell=True, stdout=PIPE)
         output, errors = cmd_status.communicate()
         print( '\n' + output)
         print( comp_name + '>> Parallel job submitted to queue!' + '\n')
@@ -2090,41 +2090,41 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         # (PBS)
         # '#PBS -A xxx'                                          + '\n' \
         # (Slurm)
-        # '#SBATCH -A xxx'                                       + '\n' \
+         '#SBATCH -A xxx'                                       + '\n' \
         # (LSF)
-        '#BSUB -P GEN159'					 + '\n' \
+        #'#BSUB -P GEN159'					 + '\n' \
                                                                                \
         # Name of the queue to which the job should be submitted:
         # (PBS)
         # '#PBS -q ' + str(pbs_dict['queue'])                             + '\n' \
         # (Slurm)
-        #'#SBATCH -p ' + str(pbs_dict['queue'])                          + '\n' \
+        '#SBATCH -p ' + str(pbs_dict['queue'])                          + '\n' \
                                                                                \
         # Name of the job to be submitted to the scheduler:
         # (PBS)
         # '#PBS -N ' + comp_name                                          + '\n' \
         # (Slurm)
-        #'#SBATCH -J ' + comp_name                                       + '\n' \
+        '#SBATCH -J ' + comp_name                                       + '\n' \
         # (LSF)
-        '#BSUB -J ' + comp_name						+ '\n' \
+        #'#BSUB -J ' + comp_name						+ '\n' \
                                                                                \
         # Node(s) and processor(s) per node (ppn) for job:
         # (PBS)
         # '#PBS -l nodes=0' + str(pbs_dict['nodes'])                             \
         #        + ':ppn=' + str(pbs_dict[ 'ppn' ])                       + '\n' \
         # (Slurm)
-        #'#SBATCH --nodes=' + str(pbs_dict['nodes'])                     + '\n' \
-        #'#SBATCH --ntasks-per-node=' + str(pbs_dict['ppn'])             + '\n' \
+        '#SBATCH --nodes=' + str(pbs_dict['nodes'])                     + '\n' \
+        '#SBATCH --ntasks-per-node=' + str(pbs_dict['ppn'])             + '\n' \
         # (LSF)
-        '#BSUB -nnodes ' + str(pbs_dict['nodes'])			+ '\n' \
+        #'#BSUB -nnodes ' + str(pbs_dict['nodes'])			+ '\n' \
                                                                                \
         # Maximum amount of time to commit to the execution of the job:
         # (PBS)
         # '#PBS -l walltime=' + str(pbs_dict['walltime'])                 + '\n' \
         # (Slurm)
-        #'#SBATCH -t ' + str(pbs_dict['walltime'])                       + '\n' \
+        '#SBATCH -t ' + str(pbs_dict['walltime'])                       + '\n' \
         # (LSF)
-        '#BSUB -W ' + str(pbs_dict['walltime']) 			+ '\n' \
+        #'#BSUB -W ' + str(pbs_dict['walltime']) 			+ '\n' \
                                                                                \
         # Declare the job rerunable (y) or non-rerunable (n)
         # (PBS)
@@ -2134,12 +2134,12 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         # (PBS)
         # '#PBS -j oe'                                                    + '\n' \
         # (Slurm)
-        #'#SBATCH -o ' + comp_name + '.o%j'                              + '\n' \
-        #'#SBATCH -e ' + comp_name + '.o%j'                              + '\n' \
+        '#SBATCH -o ' + comp_name + '.o%j'                              + '\n' \
+        '#SBATCH -e ' + comp_name + '.o%j'                              + '\n' \
         # (LSF)
-        '#BSUB -o ' + comp_name + '.%J'                                  + '\n' \
-        '#BSUB -e ' + comp_name + '.%J'                                  + '\n' \
-        '#BSUB -alloc_flags "gpumps smt1"'                               + '\n' \
+        #'#BSUB -o ' + comp_name + '.%J'                                  + '\n' \
+        #'#BSUB -e ' + comp_name + '.%J'                                  + '\n' \
+        #'#BSUB -alloc_flags "gpumps smt1"'                               + '\n' \
 										\
 	#'export TAU_METRICS=TIME'              				 + '\n' \
 	#'export TAU_SAMPLING=0'	                                         + '\n' \
@@ -2159,8 +2159,8 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         # '#PBS -m bae'                                                   + '\n' \
         # '#PBS -M ' + str(pbs_dict['mail_list'])                         + '\n' \
         # (Slurm)
-        #'#SBATCH --mail-type=all'                                       + '\n' \
-        #'#SBATCH --mail-user=' + str(pbs_dict['mail_list'])             + '\n' \
+        '#SBATCH --mail-type=all'                                       + '\n' \
+        '#SBATCH --mail-user=' + str(pbs_dict['mail_list'])             + '\n' \
                                                                                \
         #'sleep 30s'                                                     + '\n' \
         # Total number of processor(s) allocated for job execution
@@ -2204,22 +2204,22 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
                                                                                \
         # Executing job:
     	# (Slurm) and (PBS)
-        #'mpirun '                                                              \
-        #                               + mfc_dir + '/' + comp_name             \
-        #                               + '_code' + '/' + comp_name      + '\n' \
+        'mpirun '                                                              \
+                                       + mfc_dir + '/' + comp_name             \
+                                       + '_code' + '/' + comp_name      + '\n' \
 	# (LSF)
-        'jsrun -n 1 -a '+str(pbs_dict[ 'ppn' ]) + ' -c '+str(pbs_dict[ 'ppn' ])\
+        #'jsrun -n 1 -a '+str(pbs_dict[ 'ppn' ]) + ' -c '+str(pbs_dict[ 'ppn' ])\
 				       #+ ' --smpiargs="off" '	               \
 				       #+ ' --smpiargs="-gpu" '	               \
-	                               + ' -g '+str(pbs_dict[ 'gpn' ]) +  ' '  \
+	                               #+ ' -g '+str(pbs_dict[ 'gpn' ]) +  ' '  \
 				       #+ ' pgprof -o profile.%h.%p.%q{OMPI_COMM_WORLD_RANK} '\
 				       #+ ' nvprof --cpu-profiling on --cpu-profiling-mode top-down -o profile.%h.%q{OMPI_COMM_WORLD_RANK} '\
 				       #+ ' -l GPU-CPU '                       \
 				       #+ ' tau_exec -T mpi -ebs '	       \
 				       #+ ' -openacc '			       \
 				       #+ ' tau_exec -T mpi,pgi,pdt -ebs '     \
-                                       + mfc_dir + '/' + comp_name             \
-                                       + '_code' + '/' + comp_name      + '\n' \
+                                       #+ mfc_dir + '/' + comp_name             \
+                                       #+ '_code' + '/' + comp_name      + '\n' \
 
         # Stopping the timer for the job
         't_stop=$(date +%s)' + '\n' + 'echo'                            + '\n' \
@@ -2250,8 +2250,8 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
     
     
     # Giving the batch file the permission to be executed
-    #cmd_status = Popen('chmod +x ' + comp_name + '.sh', shell=True, stdout=PIPE)
-    cmd_status = Popen('chmod +x ' + comp_name + '.lsf', shell=True, stdout=PIPE)
+    cmd_status = Popen('chmod +x ' + comp_name + '.sh', shell=True, stdout=PIPE)
+    #cmd_status = Popen('chmod +x ' + comp_name + '.lsf', shell=True, stdout=PIPE)
     output, errors = cmd_status.communicate()
 # END: def f_create_batch_file -------------------------------------------------
 

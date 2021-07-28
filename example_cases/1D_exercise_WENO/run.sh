@@ -11,7 +11,7 @@
 ## 42/6 = 7 where 42 = number of total cores (c)
 ## (a == c) usually
 
-export PGI_ACC_NOTIFY=
+export PGI_ACC_NOTIFY=2
 
 ## Full node
 # jsrun -r6 -a7 -c7 -g1 ../../src/pre_process_code/pre_process
@@ -26,7 +26,7 @@ export PGI_ACC_NOTIFY=
 # jsrun -r1 -a1 -c1 -g1 ../../src/simulation_code/simulation
 
 mpirun -n 1 ../../src/pre_process_code/pre_process
-mpirun -n 1 ../../src/simulation_code/simulation
+time mpirun -n 1 ../../src/simulation_code/simulation
 
 ## Profile 
 # jsrun -r1 -a7 -c7 -g1 ../../src/pre_process_code/pre_process

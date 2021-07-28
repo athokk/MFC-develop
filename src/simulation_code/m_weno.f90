@@ -62,7 +62,7 @@ module m_weno
     ! implicit none
 
     private; public :: s_initialize_weno_module, &
-                       s_finalize_weno_module, s_weno_alt
+                       s_finalize_weno_module, s_weno!_alt
                     ! s_weno, &
 
     type(vector_field), allocatable, dimension(:) :: v_rs_wsL
@@ -483,8 +483,20 @@ contains
 
         ! Do we need to copyin v_vf? We do this earlier I believe
         ! TODO come back to line 88 for the copyin
-        !$acc data copyout(vL_vf,vR_vf) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
-        !$acc parallel loop collapse(3) present(v_rs_wsL)
+
+!originally
+!!        !$acc data copyout(vL_vf,vR_vf) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
+!!        !$acc parallel loop collapse(3) present(v_rs_wsL)
+
+!print*, 'marker 3a'
+
+!Testing
+!!        !$acc data copyin(v_vf(:),v_vf(1)%sf(:,:,:)) copyout(vL_vf(:),vL_vf(1)%sf(:,:,:),vR_vf(:),vR_vf(1)%sf(:,:,:)) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
+!!        !$acc parallel loop collapse(3) present(v_rs_wsL(:),v_rs_wsL(0)%vf(:),v_rs_wsL(0)%vf(1)%sf(:,:,:))
+
+!Working 'ugly' version
+        !$acc data copyin(v_vf(:),v_vf(1)%sf(:,:,:),v_vf(2)%sf(:,:,:),v_vf(3)%sf(:,:,:),v_vf(4)%sf(:,:,:)) copyout(vL_vf(:),vL_vf(1)%sf(:,:,:),vL_vf(2)%sf(:,:,:),vL_vf(3)%sf(:,:,:),vL_vf(4)%sf(:,:,:),vR_vf(:),vR_vf(1)%sf(:,:,:),vR_vf(2)%sf(:,:,:),vR_vf(3)%sf(:,:,:),vR_vf(4)%sf(:,:,:)) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
+        !$acc parallel loop collapse(3) present(v_rs_wsL(:),v_rs_wsL(-2)%vf(:),v_rs_wsL(-1)%vf(:),v_rs_wsL(0)%vf(:),v_rs_wsL(1)%vf(:),v_rs_wsL(2)%vf(:),v_rs_wsl(-2)%vf(1)%sf(:,:,:),v_rs_wsL(-2)%vf(2)%sf(:,:,:),v_rs_wsL(-2)%vf(3)%sf(:,:,:),v_rs_wsL(-2)%vf(4)%sf(:,:,:),v_rs_wsL(-1)%vf(1)%sf(:,:,:),v_rs_wsL(-1)%vf(2)%sf(:,:,:),v_rs_wsL(-1)%vf(3)%sf(:,:,:),v_rs_wsL(-1)%vf(4)%sf(:,:,:),v_rs_wsL(0)%vf(1)%sf(:,:,:),v_rs_wsL(0)%vf(2)%sf(:,:,:),v_rs_wsL(0)%vf(3)%sf(:,:,:),v_rs_wsL(0)%vf(4)%sf(:,:,:),v_rs_wsL(1)%vf(1)%sf(:,:,:),v_rs_wsL(1)%vf(2)%sf(:,:,:),v_rs_wsL(1)%vf(3)%sf(:,:,:),v_rs_wsL(1)%vf(4)%sf(:,:,:),v_rs_wsL(2)%vf(1)%sf(:,:,:),v_rs_wsL(2)%vf(2)%sf(:,:,:),v_rs_wsL(2)%vf(3)%sf(:,:,:),v_rs_wsL(2)%vf(4)%sf(:,:,:))
         do k = ix%beg, ix%end
            do j = 1, sys_size
               do i = -weno_polyn, weno_polyn
@@ -495,6 +507,8 @@ contains
         end do
         !$acc end parallel loop
 
+!print*, 'marker 3b'
+
         !$acc parallel loop gang vector collapse(3) private(dvd, poly, beta, alpha, omega)
         do l = iz%beg, iz%end
             do k = iy%beg, iy%end
@@ -502,6 +516,7 @@ contains
                    do i = 1, sys_size
                         dvd(1) = v_rs_wsL(2)%vf(i)%sf(j, k, l) &
                                  - v_rs_wsL(1)%vf(i)%sf(j, k, l)
+
                         dvd(0) = v_rs_wsL(1)%vf(i)%sf(j, k, l) &
                                 - v_rs_wsL(0)%vf(i)%sf(j, k, l)
                         dvd(-1) = v_rs_wsL(0)%vf(i)%sf(j, k, l) &
@@ -534,6 +549,7 @@ contains
 
                         alpha  = d_L(:, j)/(beta*beta)
                         omega  = alpha/sum(alpha)
+
                         vL_vf(i)%sf(j, k, l) = sum(omega*poly)
 
                         dvd(1) = v_rs_wsL(2)%vf(i)%sf(j, k, l) &
@@ -570,19 +586,27 @@ contains
 
                         alpha   = d_R(:, j)/(beta*beta)
                         omega   = alpha/sum(alpha)
-                        vR_vf(i)%sf(j, k, l) = sum(omega*poly)
 
+                        vR_vf(i)%sf(j, k, l) = sum(omega*poly)
                     end do
                 end do
             end do
         end do
-        !$acc end parallel loop 
+        !$acc end parallel loop
         !$acc end data
+
+!print*, 'marker 3c'
 
 !        do i = -weno_polyn, weno_polyn
 !            do j = 1, sys_size
 !                deallocate (v_rs_wsL(i)%vf(j)%sf)
 !            end do
+!        end do
+
+!        do i = ix%beg, ix%end
+!            print*, '** vL, vR ', &
+!                vL_vf(1)%sf(i,0,0), &
+!                vR_vf(1)%sf(i,0,0)
 !        end do
     end subroutine s_weno 
 

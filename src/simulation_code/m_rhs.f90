@@ -97,6 +97,8 @@ module m_rhs
     type(vector_field), allocatable, dimension(:) :: qR_cons_ndqp
     !> @}
 
+    !$acc declare create(qL_cons_ndqp, qR_cons_ndqp)
+
     !> @name The left and right WENO-reconstructed cell-boundary values, that include
     !! cell-boundary Gaussian quadrature points, of the cell-averaged primitive
     !! variables. The latter are stored in the variable q_prim_qp.
@@ -104,6 +106,8 @@ module m_rhs
     type(vector_field), allocatable, dimension(:) :: qL_prim_ndqp
     type(vector_field), allocatable, dimension(:) :: qR_prim_ndqp
     !> @}
+
+    !$acc declare create(qL_prim_ndqp, qR_prim_ndqp)
 
     !> @name The first-order spatial derivatives of the primitive variables at cell-
     !! interior Guassian quadrature points. These are WENO-reconstructed from
@@ -245,9 +249,17 @@ contains
 
         do i = 1, num_dims
             allocate (qL_cons_ndqp(i)%vf(1:sys_size))
+            !$acc enter data create(qL_cons_ndqp(i)%vf)
+
             allocate (qR_cons_ndqp(i)%vf(1:sys_size))
+            !$acc enter data create(qR_cons_ndqp(i)%vf)
+
             allocate (qL_prim_ndqp(i)%vf(1:sys_size))
+            !$acc enter data create(qL_prim_ndqp(i)%vf)
+
             allocate (qR_prim_ndqp(i)%vf(1:sys_size))
+            !$acc enter data create(qR_prim_ndqp(i)%vf)
+
 
             allocate (myflux_vf(i)%vf(1:sys_size))
             allocate (myflux_src_vf(i)%vf(1:sys_size))
@@ -270,10 +282,12 @@ contains
                               ix%beg:ix%end, &
                               iy%beg:iy%end, &
                               iz%beg:iz%end))
+                    !$acc enter data create(qL_cons_ndqp(i)%vf(l)%sf)
                     allocate (qR_cons_ndqp(i)%vf(l)%sf( &
                               ix%beg:ix%end, &
                               iy%beg:iy%end, &
                               iz%beg:iz%end))
+                    !$acc enter data create(qR_cons_ndqp(i)%vf(l)%sf)
                 end do
 
                 if (weno_vars == 1) then
@@ -282,10 +296,12 @@ contains
                                   ix%beg:ix%end, &
                                   iy%beg:iy%end, &
                                   iz%beg:iz%end))
+                        !$acc enter data create(qL_cons_ndqp(i)%vf(l)%sf)
                         allocate (qR_cons_ndqp(i)%vf(l)%sf( &
                                   ix%beg:ix%end, &
                                   iy%beg:iy%end, &
                                   iz%beg:iz%end))
+                        !$acc enter data create(qR_cons_ndqp(i)%vf(l)%sf)
                     end do
                 end if
 
@@ -294,10 +310,12 @@ contains
                               ix%beg:ix%end, &
                               iy%beg:iy%end, &
                               iz%beg:iz%end))
+                    !$acc enter data create(qL_prim_ndqp(i)%vf(l)%sf)
                     allocate (qR_prim_ndqp(i)%vf(l)%sf( &
                               ix%beg:ix%end, &
                               iy%beg:iy%end, &
                               iz%beg:iz%end))
+                    !$acc enter data create(qR_prim_ndqp(i)%vf(l)%sf)
                 end do
 
                 if (model_eqns == 3) then
@@ -306,10 +324,12 @@ contains
                                   ix%beg:ix%end, &
                                   iy%beg:iy%end, &
                                   iz%beg:iz%end))
+                        !$acc enter data create(qL_prim_ndqp(i)%vf(l)%sf)
                         allocate (qR_prim_ndqp(i)%vf(l)%sf( &
                                   ix%beg:ix%end, &
                                   iy%beg:iy%end, &
                                   iz%beg:iz%end))
+                        !$acc enter data create(qR_prim_ndqp(i)%vf(l)%sf)
                     end do
                 end if
 
@@ -318,10 +338,12 @@ contains
                               ix%beg:ix%end, &
                               iy%beg:iy%end, &
                               iz%beg:iz%end))
+                    !$acc enter data create(qL_cons_ndqp(i)%vf(l)%sf)
                     allocate (qR_cons_ndqp(i)%vf(l)%sf( &
                               ix%beg:ix%end, &
                               iy%beg:iy%end, &
                               iz%beg:iz%end))
+                    !$acc enter data create(qR_cons_ndqp(i)%vf(l)%sf)
                 end do
 
                 if (bubbles) then
@@ -330,10 +352,12 @@ contains
                                   ix%beg:ix%end, &
                                   iy%beg:iy%end, &
                                   iz%beg:iz%end))
+                        !$acc enter data create(qL_prim_ndqp(i)%vf(l)%sf)
                         allocate (qR_prim_ndqp(i)%vf(l)%sf( &
                                   ix%beg:ix%end, &
                                   iy%beg:iy%end, &
                                   iz%beg:iz%end))
+                        !$acc enter data create(qR_prim_ndqp(i)%vf(l)%sf)
                     end do
                 end if
             else
@@ -341,12 +365,16 @@ contains
                 do l = 1, sys_size
                     qL_cons_ndqp(i)%vf(l)%sf => &
                         qL_cons_ndqp(1)%vf(l)%sf
+                    !$acc enter data copyin(qL_cons_ndqp(i)%vf(l)%sf)
                     qR_cons_ndqp(i)%vf(l)%sf => &
                         qR_cons_ndqp(1)%vf(l)%sf
+                    !$acc enter data copyin(qR_cons_ndqp(i)%vf(l)%sf)
                     qL_prim_ndqp(i)%vf(l)%sf => &
                         qL_prim_ndqp(1)%vf(l)%sf
+                    !$acc enter data copyin(qL_prim_ndqp(i)%vf(l)%sf)
                     qR_prim_ndqp(i)%vf(l)%sf => &
                         qR_prim_ndqp(1)%vf(l)%sf
+                    !$acc enter data copyin(qR_prim_ndqp(i)%vf(l)%sf)
                 end do
             end if
 
@@ -354,23 +382,29 @@ contains
             do l = 1, cont_idx%end
                 qL_prim_ndqp(i)%vf(l)%sf => &
                     qL_cons_ndqp(i)%vf(l)%sf
+                !$acc enter data copyin(qL_prim_ndqp(i)%vf(l)%sf)
                 qR_prim_ndqp(i)%vf(l)%sf => &
                     qR_cons_ndqp(i)%vf(l)%sf
+                !$acc enter data copyin(qR_prim_ndqp(i)%vf(l)%sf)
             end do
 
             if (adv_alphan) then
                 do l = adv_idx%beg, adv_idx%end
                     qL_prim_ndqp(i)%vf(l)%sf => &
                         qL_cons_ndqp(i)%vf(l)%sf
+                    !$acc enter data copyin(qL_prim_ndqp(i)%vf(l)%sf)
                     qR_prim_ndqp(i)%vf(l)%sf => &
                         qR_cons_ndqp(i)%vf(l)%sf
+                    !$acc enter data copyin(qR_prim_ndqp(i)%vf(l)%sf)
                 end do
             else
                 do l = adv_idx%beg, adv_idx%end + 1
                     qL_prim_ndqp(i)%vf(l)%sf => &
                         qL_cons_ndqp(i)%vf(l)%sf
+                    !$acc enter data copyin(qL_cons_ndqp(i)%vf(l)%sf)
                     qR_prim_ndqp(i)%vf(l)%sf => &
                         qR_cons_ndqp(i)%vf(l)%sf
+                    !$acc enter data copyin(qR_cons_ndqp(i)%vf(l)%sf)
                 end do
             end if
         end do
@@ -537,9 +571,8 @@ contains
             q_prim_qp%vf, &
             ix, iy, iz)
         call nvtxEndRange
-
         !$ acc update device(q_prim_qp%vf(i)%sf)
-
+print*, 'marker 1'
         if (t_step == t_step_stop) return
 
         i = 1 !Coordinate Index
@@ -548,8 +581,11 @@ contains
         call s_reconstruct_cell_boundary_values( &
             q_prim_qp%vf(iv%beg:iv%end), &
             qL_prim_ndqp(i), qR_prim_ndqp(i), i)
+        !$acc update host (qR_prim_ndqp(1)%vf(1)%sf(:,:,:))
+        !$acc update host (qL_prim_ndqp(1)%vf(1)%sf(:,:,:))
+        ! Unsure if this correctly updates all variables
         call nvtxEndRange
-
+print*, 'marker 2'
         call nvtxStartRange("RHS-Riemann")
         call s_hllc_riemann_solver( &
                               qR_prim_ndqp(i)%vf, &
@@ -559,7 +595,7 @@ contains
                               i)
         call nvtxEndRange
         !!$acc end data
-
+print*, 'marker 3'
         ! ! do k = iv%beg, iv%end
 
         if (t_step == t_step_stop) return
@@ -600,7 +636,6 @@ contains
         do i = 1, sys_size
             nullify (q_cons_qp%vf(i)%sf, q_prim_qp%vf(i)%sf)
         end do
-
         ! do k = 1,sys_size-1
         !     print*, 'Variable ', k 
         !     do j = 0,m
@@ -2036,19 +2071,17 @@ contains
             is3%end = is3%end - weno_polyn
         end if
 
-        call s_weno_alt(v_vf(iv%beg:iv%end), &
-                    vL_qp%vf(iv%beg:iv%end), &
-                    vR_qp%vf(iv%beg:iv%end), &
-                    weno_dir,  &
-                    is1, is2, is3)
+!         call s_weno_alt(v_vf(iv%beg:iv%end), &
+!                    vL_qp%vf(iv%beg:iv%end), &
+!                    vR_qp%vf(iv%beg:iv%end), &
+!                    weno_dir,  &
+!                    is1, is2, is3)
 
-
-        ! call s_weno(v_vf(iv%beg:iv%end), &
-                    ! vL_qp%vf(iv%beg:iv%end), &
-                    ! vR_qp%vf(iv%beg:iv%end), &
-                    ! weno_dir,  &
-                    ! is1, is2, is3)
-
+         call s_weno(v_vf(iv%beg:iv%end), &
+                     vL_qp%vf(iv%beg:iv%end), &
+                     vR_qp%vf(iv%beg:iv%end), &
+                     weno_dir,  &
+                     is1, is2, is3)
         ! ==================================================================
 
     end subroutine s_reconstruct_cell_boundary_values ! --------------------

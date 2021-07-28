@@ -120,6 +120,270 @@ contains
         dir_flg(1) = 1d0
         dir_flg(2) = 0
         dir_flg(3) = 0
+print*, 'marker 4a'
+        do i = 1,num_fluids
+            gammas(i) = fluid_pp(i)%gamma
+            pi_infs(i) = fluid_pp(i)%pi_inf
+        end do
+print*, 'marker 4b'
+         do i = 1, sys_size
+             qL_prim_rs_vf(i)%sf = qL_prim_vf(i)%sf(ix%beg:ix%end, &
+                                                    iy%beg:iy%end, &
+                                                    iz%beg:iz%end)
+             qR_prim_rs_vf(i)%sf = qR_prim_vf(i)%sf(ix%beg + 1:ix%end + 1, &
+                                                    iy%beg:iy%end, &
+                                                    iz%beg:iz%end)
+         end do
+print*, 'marker 4c'
+!        do i = 1, sys_size
+!            qL_prim_rs_vf_flat(:,:,:,i) = qL_prim_vf(i)%sf(ix%beg:ix%end, &
+!                                                   iy%beg:iy%end, &
+!                                                   iz%beg:iz%end)
+!            qR_prim_rs_vf_flat(:,:,:,i) = qR_prim_vf(i)%sf(ix%beg + 1:ix%end + 1, &
+!                                                   iy%beg:iy%end, &
+!                                                   iz%beg:iz%end)
+!        end do
+
+!        !$ acc data copyin(qL_prim_rs_vf_flat,qR_prim_rs_vf_flat,dir_idx,dir_flg,gammas,pi_infs) copyout(flux_vf_flat,flux_src_vf_flat) 
+!        !$ acc parallel loop collapse(3) gang vector private(alpha_rho_L, alpha_rho_R, vel_L, vel_R, alpha_L, alpha_R)
+        do l = izb, ize
+            do k = iyb, iye
+                do j = ixb, ixe
+
+                    do i = 1, cont_idx_e
+                        alpha_rho_L(i) = qL_prim_rs_vf(i)%sf(j    , k, l)
+                        alpha_rho_R(i) = qR_prim_rs_vf(i)%sf(j + 1, k, l)
+!                        alpha_rho_L(i) = qL_prim_rs_vf_flat(j, k, l, i)
+!                        alpha_rho_R(i) = qR_prim_rs_vf_flat(j + 1, k, l, i)
+                    end do
+
+                    do i = 1, num_dims
+                        vel_L(i) = qL_prim_rs_vf(cont_idx_e + i)%sf(j, k, l)
+                        vel_R(i) = qR_prim_rs_vf(cont_idx_e + i)%sf(j + 1, k, l)
+!                        vel_L(i) = qL_prim_rs_vf_flat(j, k, l, cont_idx_e + i)
+!                        vel_R(i) = qR_prim_rs_vf_flat(j + 1, k, l, cont_idx_e + i)
+                    end do
+
+                    do i = 1,num_fluids
+                        alpha_L(i) = qL_prim_rs_vf(E_idx + i)%sf(j, k, l)
+                        alpha_R(i) = qR_prim_rs_vf(E_idx + i)%sf(j + 1, k, l)
+!                        alpha_L(i) = qL_prim_rs_vf_flat(j, k, l, E_idx + i)
+!                        alpha_R(i) = qR_prim_rs_vf_flat(j + 1, k, l, E_idx + i)
+                    end do
+
+                    pres_L = qL_prim_rs_vf(E_idx)%sf(j, k, l)
+                    pres_R = qR_prim_rs_vf(E_idx)%sf(j + 1, k, l)
+!                    pres_L = qL_prim_rs_vf_flat(j, k, l, E_idx)
+!                    pres_R = qR_prim_rs_vf_flat(j + 1, k, l, E_idx)
+
+                    ! Compute average state
+                    call s_convert_species_to_mixture_variables_acc_shb( &
+                                                        alpha_rho_L, alpha_L, &
+                                                        gammas, pi_infs, &
+                                                        rho_L, &
+                                                        gamma_L, &
+                                                        pi_inf_L, num_fluids)
+
+
+                    call s_convert_species_to_mixture_variables_acc_shb( &
+                                                        alpha_rho_R, alpha_R, &
+                                                        gammas, pi_infs, &
+                                                        rho_R, &
+                                                        gamma_R, &
+                                                        pi_inf_R, num_fluids)
+
+                    E_L = gamma_L*pres_L + pi_inf_L + 5d-1*rho_L*sum(vel_L**2d0)
+                    E_R = gamma_R*pres_R + pi_inf_R + 5d-1*rho_R*sum(vel_R**2d0)
+
+                    H_L = (E_L + pres_L)/rho_L
+                    H_R = (E_R + pres_R)/rho_R
+                    
+                    ! Compute sound speeds
+                    c_L = (H_L - 5d-1*sum(vel_L**2d0))/gamma_L
+                    c_R = (H_R - 5d-1*sum(vel_R**2d0))/gamma_R
+
+                    if (mixture_err .and. c_L < 0d0) then
+                        c_L = 100.d0*sgm_eps
+                    else
+                        c_L = sqrt(c_L)
+                    end if
+
+                    if (mixture_err .and. c_R < 0d0) then
+                        c_R = 100.d0*sgm_eps
+                    else
+                        c_R = sqrt(c_R)
+                    end if
+
+                    ! Arithmetic Average Riemann Problem State 
+                    rho_avg = 5d-1*(rho_L + rho_R)
+                    vel_avg = 5d-1*(vel_L + vel_R)
+                    H_avg  = 5d-1*(H_L + H_R)
+                    gamma_avg = 5d-1*(gamma_L + gamma_R)
+
+                    if (mixture_err) then
+                        if ((H_avg - 5d-1*sum(vel_avg**2d0)) < 0d0) then
+                            c_avg = sgm_eps
+                        else
+                            c_avg = sqrt((H_avg - 5d-1*sum(vel_avg**2d0))/gamma_avg)
+                        end if
+                    else
+                        c_avg = sqrt((H_avg - 5d-1*sum(vel_avg**2d0))/gamma_avg)
+                    end if
+
+                    ! Compute wavespeeds
+                    s_L = min(vel_L(dir_idx(1)) - c_L, vel_R(dir_idx(1)) - c_R)
+                    s_R = max(vel_R(dir_idx(1)) + c_R, vel_L(dir_idx(1)) + c_L)
+
+                    s_S = (pres_R - pres_L + rho_L*vel_L(dir_idx(1))* &
+                           (s_L - vel_L(dir_idx(1))) - &
+                           rho_R*vel_R(dir_idx(1))* &
+                           (s_R - vel_R(dir_idx(1)))) &
+                          /(rho_L*(s_L - vel_L(dir_idx(1))) - &
+                            rho_R*(s_R - vel_R(dir_idx(1))))
+
+                    s_M = min(0d0, s_L)
+                    s_P = max(0d0, s_R)
+
+                    xi_L = (s_L - vel_L(dir_idx(1)))/(s_L - s_S)
+                    xi_R = (s_R - vel_R(dir_idx(1)))/(s_R - s_S)
+
+                    xi_M = (5d-1 + sign(5d-1, s_S))
+                    xi_P = (5d-1 - sign(5d-1, s_S))
+
+                    do i = 1, cont_idx_e
+!                        flux_vf_flat(j, k, l, i) = &
+                        flux_vf(i)%sf(j,k,l) = &
+                            xi_M*alpha_rho_L(i) &
+                            *(vel_L(dir_idx(1)) + s_M*(xi_L - 1d0)) &
+                            + xi_P*alpha_rho_R(i) &
+                            *(vel_R(dir_idx(1)) + s_P*(xi_R - 1d0))
+                    end do
+
+                    ! Momentum flux.
+                    do i = 1, num_dims
+!                        flux_vf_flat(j, k, l, cont_idx_e + dir_idx(i)) = &
+                        flux_vf(cont_idx_e + dir_idx(i))%sf(j,k,l) = &
+                            xi_M*(rho_L*(vel_L(dir_idx(1))* &
+                                  vel_L(dir_idx(i)) + &
+                                  s_M*(xi_L*(dir_flg(dir_idx(i))*s_S + &
+                                  (1d0 - dir_flg(dir_idx(i)))* &
+                                  vel_L(dir_idx(i))) - vel_L(dir_idx(i)))) + &
+                                  dir_flg(dir_idx(i))*(pres_L)) &
+                          + xi_P*(rho_R*(vel_R(dir_idx(1))* &
+                                  vel_R(dir_idx(i)) + &
+                                  s_P*(xi_R*(dir_flg(dir_idx(i))*s_S + &
+                                  (1d0 - dir_flg(dir_idx(i)))* &
+                                  vel_R(dir_idx(i))) - vel_R(dir_idx(i)))) + &
+                                  dir_flg(dir_idx(i))*(pres_R))
+                    end do
+
+                    ! Energy flux
+!                    flux_vf_flat(j, k, l, E_idx) = &
+                    flux_vf(E_idx)%sf(j,k,l) = &
+                        xi_M*(vel_L(dir_idx(1))*(E_L + pres_L) + &
+                             s_M*(xi_L*(E_L + (s_S - vel_L(dir_idx(1)))* &
+                             (rho_L*s_S + pres_L/ &
+                             (s_L - vel_L(dir_idx(1))))) - E_L)) &
+                      + xi_P*(vel_R(dir_idx(1))*(E_R + pres_R) + &
+                             s_P*(xi_R*(E_R + (s_S - vel_R(dir_idx(1)))* &
+                             (rho_R*s_S + pres_R/ &
+                             (s_R - vel_R(dir_idx(1))))) - E_R))
+
+                    ! Volume fraction flux
+                    do i = adv_idx_b, adv_idx_e
+!                        flux_vf_flat(j, k, l, i) = &
+                        flux_vf(i)%sf(j,k,l) = &
+                            xi_M*qL_prim_rs_vf_flat(j, k, l, i) &
+                            *(vel_L(dir_idx(1)) + s_M*(xi_L - 1d0)) &
+                            + xi_P*qR_prim_rs_vf_flat(j + 1, k, l, i) &
+                            *(vel_R(dir_idx(1)) + s_P*(xi_R - 1d0))
+                    end do
+
+                    ! Source for volume fraction advection equation
+                    do i = 1, num_dims
+                        ! This only works in 1D
+!                        flux_src_vf_flat(j, k, l, adv_idx_b) = &
+                        flux_src_vf(adv_idx_b)%sf(j,k,l) = &
+                            xi_M*(vel_L(dir_idx(i)) + &
+                                  dir_flg(dir_idx(i))* &
+                                  s_M*(xi_L - 1d0)) &
+                          + xi_P*(vel_R(dir_idx(i)) + &
+                                  dir_flg(dir_idx(i))* &
+                                  s_P*(xi_R - 1d0))
+                    end do
+                end do
+            end do
+        end do
+!        !$ acc end parallel loop 
+!        !$ acc end data
+
+        ! do i = 1,1 !sys_size
+        !     do j = ixb, ixe
+        !         print*, 'rank,flux:',proc_rank,j,flux_vf_flat(j,0,0,i)
+        !     end do
+        ! end do
+
+        ! do j = ixb, ixe
+        !     print*, 'rs:',j,flux_src_vf_flat(j,0,0,adv_idx_b)
+        ! end do
+print*, 'marker 4d'
+    end subroutine s_hllc_riemann_solver 
+
+    subroutine s_hllc_riemann_solver_alt(qL_prim_vf,  & 
+                                     qR_prim_vf,  &
+                                     flux_vf,     &
+                                     flux_src_vf, &
+                                     norm_dir)
+
+        type(scalar_field), dimension(sys_size), intent(INOUT) :: qL_prim_vf, qR_prim_vf
+        type(scalar_field), dimension(sys_size), intent(INOUT) :: flux_vf, flux_src_vf
+        integer, intent(IN) :: norm_dir
+
+        real(kind(0d0)), dimension(10)  :: alpha_rho_L, alpha_rho_R
+        real(kind(0d0))                 ::       rho_L, rho_R
+        real(kind(0d0)), dimension(10)  ::       vel_L, vel_R
+        real(kind(0d0))                 ::      pres_L, pres_R
+        real(kind(0d0))                 ::         E_L, E_R
+        real(kind(0d0))                 ::         H_L, H_R
+        real(kind(0d0)), dimension(10)  ::     alpha_L, alpha_R
+        real(kind(0d0))                 ::     gamma_L, gamma_R
+        real(kind(0d0))                 ::    pi_inf_L, pi_inf_R
+        real(kind(0d0))                 ::         c_L, c_R
+        real(kind(0d0))                 :: rho_avg
+        real(kind(0d0)), dimension(10)  :: vel_avg
+        real(kind(0d0))                 :: H_avg
+        real(kind(0d0))                 :: gamma_avg
+        real(kind(0d0))                 :: c_avg
+        real(kind(0d0))                 :: s_L, s_R, s_S
+        real(kind(0d0))                 :: s_M, s_P
+        real(kind(0d0))                 :: xi_M, xi_P
+        real(kind(0d0))                 :: xi_L, xi_R
+        real(kind(0d0)), dimension(10)  :: gammas, pi_infs
+
+        integer :: ixb, ixe, iyb, iye, izb, ize
+        integer :: cont_idx_e
+        integer :: adv_idx_b, adv_idx_e
+
+        integer :: i, j, k, l
+
+        integer, dimension(3) :: dir_idx
+        real(kind(0d0)), dimension(3) :: dir_flg
+
+        cont_idx_e = cont_idx%end
+        adv_idx_b = adv_idx%beg
+        adv_idx_e = adv_idx%end
+
+        ixb = is1%beg; ixe = is1%end
+        iyb = is2%beg; iye = is2%end
+        izb = is3%beg; ize = is3%end
+
+        dir_idx(1) = 1
+        dir_idx(2) = 2
+        dir_idx(3) = 3
+
+        dir_flg(1) = 1d0
+        dir_flg(2) = 0
+        dir_flg(3) = 0
 
         do i = 1,num_fluids
             gammas(i) = fluid_pp(i)%gamma
@@ -314,8 +578,7 @@ contains
         !     print*, 'rs:',j,flux_src_vf_flat(j,0,0,adv_idx_b)
         ! end do
 
-    end subroutine s_hllc_riemann_solver 
-
+    end subroutine s_hllc_riemann_solver_alt
 
     subroutine s_convert_species_to_mixture_variables_acc_shb(alpha_rho_K, &
                                                       alpha_K, &

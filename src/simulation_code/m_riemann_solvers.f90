@@ -120,12 +120,12 @@ contains
         dir_flg(1) = 1d0
         dir_flg(2) = 0
         dir_flg(3) = 0
-print*, 'marker 4a'
+!print*, 'marker 4a'
         do i = 1,num_fluids
             gammas(i) = fluid_pp(i)%gamma
             pi_infs(i) = fluid_pp(i)%pi_inf
         end do
-print*, 'marker 4b'
+!print*, 'marker 4b'
          do i = 1, sys_size
              qL_prim_rs_vf(i)%sf = qL_prim_vf(i)%sf(ix%beg:ix%end, &
                                                     iy%beg:iy%end, &
@@ -134,7 +134,7 @@ print*, 'marker 4b'
                                                     iy%beg:iy%end, &
                                                     iz%beg:iz%end)
          end do
-print*, 'marker 4c'
+!print*, 'marker 4c'
 !        do i = 1, sys_size
 !            qL_prim_rs_vf_flat(:,:,:,i) = qL_prim_vf(i)%sf(ix%beg:ix%end, &
 !                                                   iy%beg:iy%end, &
@@ -326,7 +326,7 @@ print*, 'marker 4c'
         ! do j = ixb, ixe
         !     print*, 'rs:',j,flux_src_vf_flat(j,0,0,adv_idx_b)
         ! end do
-print*, 'marker 4d'
+!print*, 'marker 4d'
     end subroutine s_hllc_riemann_solver 
 
     subroutine s_hllc_riemann_solver_alt(qL_prim_vf,  & 

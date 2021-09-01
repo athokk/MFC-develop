@@ -62,8 +62,8 @@ module m_weno
     ! implicit none
 
     private; public :: s_initialize_weno_module, &
-                       s_finalize_weno_module, s_weno!_alt
-                    ! s_weno, &
+                       s_finalize_weno_module, s_weno_alt, &
+                       s_weno
 
     type(vector_field), allocatable, dimension(:) :: v_rs_wsL
     !$acc declare create(v_rs_wsL)
@@ -197,7 +197,16 @@ contains
 
         k = 0; l = 0
 
-        !$acc data copyin(v_flat) copyout(vL_vf_flat,vR_vf_flat) present(v_rs_wsL_flat, poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+!        !$acc data copyin(v_flat) copyout(vL_vf_flat,vR_vf_flat) present(v_rs_wsL_flat, poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+
+! Test
+
+        !$acc enter data copyin(v_flat)
+
+        !$acc enter data create(v_rs_wsL_flat)
+        !$acc enter data create(vL_vf_flat, vR_vf_flat)
+        !$acc enter data create(poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+
         !$acc parallel loop collapse(3)
         do s = -weno_polyn, weno_polyn
             do i = 1, sys_size
@@ -208,7 +217,7 @@ contains
             end do
         end do
         !$acc end parallel loop
-
+print*, 'marker 1a'
         !$acc parallel loop gang vector private(dvd, poly, beta, alpha, omega)
         do j = ixb, ixe
             do i = 1, sys_size
@@ -421,7 +430,9 @@ contains
         end do
         !$acc end parallel loop
         end if
-        !$acc end data
+        !$acc exit data copyout(vL_vf_flat,vR_vf_flat)
+
+!        !$acc end data
 
         ! call system_clock(t2)
         ! print *, "Took: ", real(t2 - t1) / real(c_rate)
@@ -440,11 +451,11 @@ contains
             end do
         end do
 
-        ! do i = ixb, ixe
-        !     print*, '** vL, vR ', &
-        !         vL_vf(1)%sf(i,0,0), &
-        !         vR_vf(1)%sf(i,0,0)
-        ! end do
+         do i = 101, 101
+             print*, '** vL, vR ', &
+                 vL_vf(1)%sf(i,0,0), &
+                 vR_vf(1)%sf(i,0,0)
+         end do
 
         ! call s_mpi_abort()
 
@@ -479,40 +490,66 @@ contains
         real(kind(0d0)), dimension(0:weno_polyn) :: alpha
         real(kind(0d0)), dimension(0:weno_polyn) :: omega
         real(kind(0d0)), dimension(0:weno_polyn) :: beta 
-        integer :: i, j, k, l
+        integer :: i, j, k, l, r, s
+
+        integer :: ixb, ixe
 
         ! Do we need to copyin v_vf? We do this earlier I believe
         ! TODO come back to line 88 for the copyin
 
-!originally
-!!        !$acc data copyout(vL_vf,vR_vf) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
-!!        !$acc parallel loop collapse(3) present(v_rs_wsL)
+        ixb = ix%beg
+        ixe = ix%end
+        k = 0; l = 0
 
-!print*, 'marker 3a'
+! Simplest method using unstructured data directives (implicit attach)
+! Requires -ta=testla:deepcopy compiler flag (works for PGI 17.10 and newer)
 
-!Testing
-!!        !$acc data copyin(v_vf(:),v_vf(1)%sf(:,:,:)) copyout(vL_vf(:),vL_vf(1)%sf(:,:,:),vR_vf(:),vR_vf(1)%sf(:,:,:)) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
-!!        !$acc parallel loop collapse(3) present(v_rs_wsL(:),v_rs_wsL(0)%vf(:),v_rs_wsL(0)%vf(1)%sf(:,:,:))
+        !$acc enter data copyin(v_vf)
 
-!Working 'ugly' version
-        !$acc data copyin(v_vf(:),v_vf(1)%sf(:,:,:),v_vf(2)%sf(:,:,:),v_vf(3)%sf(:,:,:),v_vf(4)%sf(:,:,:)) copyout(vL_vf(:),vL_vf(1)%sf(:,:,:),vL_vf(2)%sf(:,:,:),vL_vf(3)%sf(:,:,:),vL_vf(4)%sf(:,:,:),vR_vf(:),vR_vf(1)%sf(:,:,:),vR_vf(2)%sf(:,:,:),vR_vf(3)%sf(:,:,:),vR_vf(4)%sf(:,:,:)) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
-        !$acc parallel loop collapse(3) present(v_rs_wsL(:),v_rs_wsL(-2)%vf(:),v_rs_wsL(-1)%vf(:),v_rs_wsL(0)%vf(:),v_rs_wsL(1)%vf(:),v_rs_wsL(2)%vf(:),v_rs_wsl(-2)%vf(1)%sf(:,:,:),v_rs_wsL(-2)%vf(2)%sf(:,:,:),v_rs_wsL(-2)%vf(3)%sf(:,:,:),v_rs_wsL(-2)%vf(4)%sf(:,:,:),v_rs_wsL(-1)%vf(1)%sf(:,:,:),v_rs_wsL(-1)%vf(2)%sf(:,:,:),v_rs_wsL(-1)%vf(3)%sf(:,:,:),v_rs_wsL(-1)%vf(4)%sf(:,:,:),v_rs_wsL(0)%vf(1)%sf(:,:,:),v_rs_wsL(0)%vf(2)%sf(:,:,:),v_rs_wsL(0)%vf(3)%sf(:,:,:),v_rs_wsL(0)%vf(4)%sf(:,:,:),v_rs_wsL(1)%vf(1)%sf(:,:,:),v_rs_wsL(1)%vf(2)%sf(:,:,:),v_rs_wsL(1)%vf(3)%sf(:,:,:),v_rs_wsL(1)%vf(4)%sf(:,:,:),v_rs_wsL(2)%vf(1)%sf(:,:,:),v_rs_wsL(2)%vf(2)%sf(:,:,:),v_rs_wsL(2)%vf(3)%sf(:,:,:),v_rs_wsL(2)%vf(4)%sf(:,:,:))
-        do k = ix%beg, ix%end
-           do j = 1, sys_size
-              do i = -weno_polyn, weno_polyn
-                    v_rs_wsL(i)%vf(j)%sf(k, :, :) = &
-                        v_vf(j)%sf(i + k, iy%beg:iy%end, iz%beg:iz%end)
+        !$acc enter data create(v_rs_wsL)
+        !$acc enter data create(vL_vf, vR_vf)
+        !$acc enter data create(poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+
+! Other working method (commented out for now) which explicitly loops through
+! all indices for derived types. To do: check different in computational
+! cost between above code and explicit loops below
+
+! -- copyin --
+!        !$acc enter data copyin(v_vf(1:4))
+!        do i = 1, 4
+!            !$acc enter data copyin(v_vf(i)%sf(ixb:ixe,0,0))
+!        end do
+! -- create --
+!        !$acc enter data create(v_rs_wsL(-2:2))
+!        do s = -2, 2
+!            !$acc enter data create(v_rs_wsL(s)%vf(0:4))
+!            do i = 1, 4
+!                !$acc enter data create(v_rs_wsL(s)%vf(i)%sf(ixb:ixe,0,0))
+!            end do
+!        end do
+
+!        !$acc enter data create(vL_vf(1:4), vR_vf(1:4))
+!        do i = 1, 4
+!            !$acc enter data create(vL_vf(i)%sf(ixb:ixe,0,0))
+!            !$acc enter data create(vR_vf(i)%sf(ixb:ixe,0,0))
+!        end do
+
+!        !$acc enter data create(poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+! --
+
+        !$acc parallel loop collapse(3)
+        do j = ix%beg, ix%end
+           do i = 1, sys_size
+              do s = -weno_polyn, weno_polyn
+                    v_rs_wsL(s)%vf(i)%sf(j, k, l) = &
+                        v_vf(i)%sf(s + j, k, l)
                 end do
             end do
         end do
         !$acc end parallel loop
 
-!print*, 'marker 3b'
-
-        !$acc parallel loop gang vector collapse(3) private(dvd, poly, beta, alpha, omega)
-        do l = iz%beg, iz%end
-            do k = iy%beg, iy%end
-                do j = ix%beg, ix%end
+        !$acc parallel loop gang vector private(dvd, poly, beta, alpha, omega)
+                do j = ixb, ixe
                    do i = 1, sys_size
                         dvd(1) = v_rs_wsL(2)%vf(i)%sf(j, k, l) &
                                  - v_rs_wsL(1)%vf(i)%sf(j, k, l)
@@ -588,14 +625,26 @@ contains
                         omega   = alpha/sum(alpha)
 
                         vR_vf(i)%sf(j, k, l) = sum(omega*poly)
+! -- test --
+!                        if ((j == 101) .and. (i == 1)) then
+!                                print*, sum(omega*poly)
+!                                print*, '** vL, vR ', &
+!                                        vL_vf(1)%sf(i,0,0), &
+!                                        vR_vf(1)%sf(i,0,0)
+!                        end if
+! ----------
                     end do
                 end do
-            end do
-        end do
         !$acc end parallel loop
-        !$acc end data
 
-!print*, 'marker 3c'
+        !$acc exit data copyout(vL_vf)
+        !$acc exit data copyout(vR_vf)
+
+!        do i = 1, 4
+!            !$acc exit data copyout(vL_vf(i)%sf)
+!            !$acc exit data copyout(vR_vf(i)%sf)
+!        end do
+!        !$acc exit data delete(vL_vf, vR_vf)
 
 !        do i = -weno_polyn, weno_polyn
 !            do j = 1, sys_size
@@ -603,11 +652,76 @@ contains
 !            end do
 !        end do
 
-!        do i = ix%beg, ix%end
+!        do i = 101,101
 !            print*, '** vL, vR ', &
 !                vL_vf(1)%sf(i,0,0), &
 !                vR_vf(1)%sf(i,0,0)
 !        end do
+
+! --------------------
+! Old test code left here (for now) for future ref if necessary
+! --------------------
+
+!originally
+!        !$acc data copyout(vL_vf,vR_vf) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
+!        !$acc parallel loop collapse(3) present(v_rs_wsL)
+
+!Testing
+!        !$acc data copyin(v_vf(:),v_vf(1)%sf(:,:,:)) copyout(vL_vf(:),vL_vf(1)%sf(:,:,:),vR_vf(:),vR_vf(1)%sf(:,:,:)) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
+!        !$acc parallel loop collapse(3) present(v_rs_wsL(:),v_rs_wsL(0)%vf(:),v_rs_wsL(0)%vf(1)%sf(:,:,:))
+
+!Old 'ugly' version
+!        !$acc data copyin(v_vf(:),v_vf(1)%sf(:,:,:),v_vf(2)%sf(:,:,:),v_vf(3)%sf(:,:,:),v_vf(4)%sf(:,:,:)) copyout(vL_vf(:),vL_vf(1)%sf(:,:,:),vL_vf(2)%sf(:,:,:),vL_vf(3)%sf(:,:,:),vL_vf(4)%sf(:,:,:),vR_vf(:),vR_vf(1)%sf(:,:,:),vR_vf(2)%sf(:,:,:),vR_vf(3)%sf(:,:,:),vR_vf(4)%sf(:,:,:)) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
+!        !$acc parallel loop collapse(3) present(v_rs_wsL(:),v_rs_wsL(-2)%vf(:),v_rs_wsL(-1)%vf(:),v_rs_wsL(0)%vf(:),v_rs_wsL(1)%vf(:),v_rs_wsL(2)%vf(:),v_rs_wsl(-2)%vf(1)%sf(:,:,:),v_rs_wsL(-2)%vf(2)%sf(:,:,:),v_rs_wsL(-2)%vf(3)%sf(:,:,:),v_rs_wsL(-2)%vf(4)%sf(:,:,:),v_rs_wsL(-1)%vf(1)%sf(:,:,:),v_rs_wsL(-1)%vf(2)%sf(:,:,:),v_rs_wsL(-1)%vf(3)%sf(:,:,:),v_rs_wsL(-1)%vf(4)%sf(:,:,:),v_rs_wsL(0)%vf(1)%sf(:,:,:),v_rs_wsL(0)%vf(2)%sf(:,:,:),v_rs_wsL(0)%vf(3)%sf(:,:,:),v_rs_wsL(0)%vf(4)%sf(:,:,:),v_rs_wsL(1)%vf(1)%sf(:,:,:),v_rs_wsL(1)%vf(2)%sf(:,:,:),v_rs_wsL(1)%vf(3)%sf(:,:,:),v_rs_wsL(1)%vf(4)%sf(:,:,:),v_rs_wsL(2)%vf(1)%sf(:,:,:),v_rs_wsL(2)%vf(2)%sf(:,:,:),v_rs_wsL(2)%vf(3)%sf(:,:,:),v_rs_wsL(2)%vf(4)%sf(:,:,:))
+
+! More testing (here, only a data statement first (first loop not parallel)
+!        !$acc data copyin(v_vf) copyout(vL_vf,vL_vf%sf,vR_vf,vR_vf%sf) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
+!        !$acc data copyin(v_vf) copyout(vL_vf,vR_vf) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
+!        !$acc parallel loop collapse(3) present(v_rs_wsL(-2:2),v_rs_wsL%vf(1:4),v_rs_wsL(2)%vf(4)%sf(:,:,:))
+!        !$acc parallel loop default(present)
+
+! --------------------
+! End of old test code
+! --------------------
+
+! --------------------
+! Other test code pieces
+! --------------------
+
+! -- At start --
+
+!        !$acc data copyin(v_vf, v_vf%sf) copyout(vL_vf, vL_vf%sf,vL_vf(1)%sf(101,0,0), vR_vf, vR_vf%sf) present(v_rs_wsL, poly_coef_L, poly_coef_R, d_L, d_R, beta_coef)
+
+!        do k = ix%beg, ix%end
+!           do j = 1, sys_size
+!              do i = -weno_polyn, weno_polyn
+!                    v_rs_wsL(i)%vf(j)%sf(k, :, :) = &
+!                        v_vf(j)%sf(i + k, iy%beg:iy%end, iz%beg:iz%end)
+!                end do
+!            end do
+!        end do
+
+!        !$acc parallel loop collapse(3) present(v_rs_wsL(:),v_rs_wsL(-2)%vf(:),v_rs_wsL(-1)%vf(:),v_rs_wsL(0)%vf(:),v_rs_wsL(1)%vf(:),v_rs_wsL(2)%vf(:),v_rs_wsl(-2)%vf(1)%sf(:,:,:),v_rs_wsL(-2)%vf(2)%sf(:,:,:),v_rs_wsL(-2)%vf(3)%sf(:,:,:),v_rs_wsL(-2)%vf(4)%sf(:,:,:),v_rs_wsL(-1)%vf(1)%sf(:,:,:),v_rs_wsL(-1)%vf(2)%sf(:,:,:),v_rs_wsL(-1)%vf(3)%sf(:,:,:),v_rs_wsL(-1)%vf(4)%sf(:,:,:),v_rs_wsL(0)%vf(1)%sf(:,:,:),v_rs_wsL(0)%vf(2)%sf(:,:,:),v_rs_wsL(0)%vf(3)%sf(:,:,:),v_rs_wsL(0)%vf(4)%sf(:,:,:),v_rs_wsL(1)%vf(1)%sf(:,:,:),v_rs_wsL(1)%vf(2)%sf(:,:,:),v_rs_wsL(1)%vf(3)%sf(:,:,:),v_rs_wsL(1)%vf(4)%sf(:,:,:),v_rs_wsL(2)%vf(1)%sf(:,:,:),v_rs_wsL(2)%vf(2)%sf(:,:,:),v_rs_wsL(2)%vf(3)%sf(:,:,:),v_rs_wsL(2)%vf(4)%sf(:,:,:)) copyin(v_vf(:),v_vf(1)%sf(:,:,:),v_vf(2)%sf(:,:,:),v_vf(3)%sf(:,:,:),v_vf(4)%sf(:,:,:))
+
+! -- Between loops --
+
+!        !$acc end parallel loop
+!        !$acc update host (v_rs_wsL(:),v_rs_wsL(-2)%vf(:),v_rs_wsL(-1)%vf(:),v_rs_wsL(0)%vf(:),v_rs_wsL(1)%vf(:),v_rs_wsL(2)%vf(:),v_rs_wsl(-2)%vf(1)%sf(:,:,:),v_rs_wsL(-2)%vf(2)%sf(:,:,:),v_rs_wsL(-2)%vf(3)%sf(:,:,:),v_rs_wsL(-2)%vf(4)%sf(:,:,:),v_rs_wsL(-1)%vf(1)%sf(:,:,:),v_rs_wsL(-1)%vf(2)%sf(:,:,:),v_rs_wsL(-1)%vf(3)%sf(:,:,:),v_rs_wsL(-1)%vf(4)%sf(:,:,:),v_rs_wsL(0)%vf(1)%sf(:,:,:),v_rs_wsL(0)%vf(2)%sf(:,:,:),v_rs_wsL(0)%vf(3)%sf(:,:,:),v_rs_wsL(0)%vf(4)%sf(:,:,:),v_rs_wsL(1)%vf(1)%sf(:,:,:),v_rs_wsL(1)%vf(2)%sf(:,:,:),v_rs_wsL(1)%vf(3)%sf(:,:,:),v_rs_wsL(1)%vf(4)%sf(:,:,:),v_rs_wsL(2)%vf(1)%sf(:,:,:),v_rs_wsL(2)%vf(2)%sf(:,:,:),v_rs_wsL(2)%vf(3)%sf(:,:,:),v_rs_wsL(2)%vf(4)%sf(:,:,:))
+!        !$acc parallel loop gang vector collapse(3) private(dvd, poly, beta, alpha, omega)
+!        !$acc parallel loop gang vector private(dvd, poly, beta, alpha, omega)
+!        do l = iz%beg, iz%end
+!            do k = iy%beg, iy%end
+
+!        !$acc parallel loop gang vector private(dvd,poly,beta,alpha,omega)
+
+! -- At end --
+
+!        !$acc end parallel loop
+!        !$acc end data
+
+! --------------------
+! End of other test code
+! --------------------
     end subroutine s_weno 
 
     subroutine s_compute_weno_coefficients(is) ! -------

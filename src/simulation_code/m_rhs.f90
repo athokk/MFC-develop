@@ -572,7 +572,7 @@ contains
             ix, iy, iz)
         call nvtxEndRange
         !$ acc update device(q_prim_qp%vf(i)%sf)
-print*, 'marker 1'
+!print*, 'marker 1'
         if (t_step == t_step_stop) return
 
         i = 1 !Coordinate Index
@@ -581,11 +581,17 @@ print*, 'marker 1'
         call s_reconstruct_cell_boundary_values( &
             q_prim_qp%vf(iv%beg:iv%end), &
             qL_prim_ndqp(i), qR_prim_ndqp(i), i)
-        !$acc update host (qR_prim_ndqp(1)%vf(1)%sf(:,:,:))
-        !$acc update host (qL_prim_ndqp(1)%vf(1)%sf(:,:,:))
-        ! Unsure if this correctly updates all variables
+        !$acc update host (qR_prim_ndqp)
+        !$acc update host (qL_prim_ndqp)
+! -- test --
+!        !$acc update host (qR_prim_ndqp(1)%vf(1)%sf(:,:,:))
+!        !$acc update host (qL_prim_ndqp(1)%vf(1)%sf(:,:,:))
+!        print*, '** qL, qR ', &
+!                qL_prim_ndqp(1)%vf(1)%sf(101,0,0), &
+!                qR_prim_ndqp(1)%vf(1)%sf(101,0,0)
+! ----------
         call nvtxEndRange
-print*, 'marker 2'
+!print*, 'marker 2'
         call nvtxStartRange("RHS-Riemann")
         call s_hllc_riemann_solver( &
                               qR_prim_ndqp(i)%vf, &
@@ -595,7 +601,7 @@ print*, 'marker 2'
                               i)
         call nvtxEndRange
         !!$acc end data
-print*, 'marker 3'
+!print*, 'marker 3'
         ! ! do k = iv%beg, iv%end
 
         if (t_step == t_step_stop) return

@@ -581,14 +581,10 @@ contains
         call s_reconstruct_cell_boundary_values( &
             q_prim_qp%vf(iv%beg:iv%end), &
             qL_prim_ndqp(i), qR_prim_ndqp(i), i)
-        !$acc update host (qR_prim_ndqp)
-        !$acc update host (qL_prim_ndqp)
 ! -- test --
-!        !$acc update host (qR_prim_ndqp(1)%vf(1)%sf(:,:,:))
-!        !$acc update host (qL_prim_ndqp(1)%vf(1)%sf(:,:,:))
 !        print*, '** qL, qR ', &
-!                qL_prim_ndqp(1)%vf(1)%sf(101,0,0), &
-!                qR_prim_ndqp(1)%vf(1)%sf(101,0,0)
+!                qL_prim_ndqp(1)%vf(2)%sf(101,0,0), &
+!                qR_prim_ndqp(1)%vf(2)%sf(101,0,0)
 ! ----------
         call nvtxEndRange
 !print*, 'marker 2'
@@ -2088,6 +2084,7 @@ contains
                      vR_qp%vf(iv%beg:iv%end), &
                      weno_dir,  &
                      is1, is2, is3)
+
         ! ==================================================================
 
     end subroutine s_reconstruct_cell_boundary_values ! --------------------

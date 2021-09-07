@@ -197,15 +197,17 @@ contains
 
         k = 0; l = 0
 
-!        !$acc data copyin(v_flat) copyout(vL_vf_flat,vR_vf_flat) present(v_rs_wsL_flat, poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+        !$acc data copyin(v_flat) copyout(vL_vf_flat,vR_vf_flat) present(v_rs_wsL_flat, poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
 
-! Test
+! -- Test --
 
-        !$acc enter data copyin(v_flat)
+!        !$acc enter data copyin(v_flat)
 
-        !$acc enter data create(v_rs_wsL_flat)
-        !$acc enter data create(vL_vf_flat, vR_vf_flat)
-        !$acc enter data create(poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+!        !$acc enter data create(v_rs_wsL_flat)
+!        !$acc enter data create(vL_vf_flat, vR_vf_flat)
+!        !$acc enter data create(poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+
+! ----------
 
         !$acc parallel loop collapse(3)
         do s = -weno_polyn, weno_polyn
@@ -217,7 +219,7 @@ contains
             end do
         end do
         !$acc end parallel loop
-print*, 'marker 1a'
+!print*, 'marker 1a'
         !$acc parallel loop gang vector private(dvd, poly, beta, alpha, omega)
         do j = ixb, ixe
             do i = 1, sys_size
@@ -430,9 +432,11 @@ print*, 'marker 1a'
         end do
         !$acc end parallel loop
         end if
-        !$acc exit data copyout(vL_vf_flat,vR_vf_flat)
+        !$acc end data
 
-!        !$acc end data
+! -- Test --
+!        !$acc exit data copyout(vL_vf_flat,vR_vf_flat)
+! ----------
 
         ! call system_clock(t2)
         ! print *, "Took: ", real(t2 - t1) / real(c_rate)
@@ -451,11 +455,11 @@ print*, 'marker 1a'
             end do
         end do
 
-         do i = 101, 101
-             print*, '** vL, vR ', &
-                 vL_vf(1)%sf(i,0,0), &
-                 vR_vf(1)%sf(i,0,0)
-         end do
+!         do i = 101, 101
+!             print*, '** vL, vR ', &
+!                 vL_vf(1)%sf(i,0,0), &
+!                 vR_vf(1)%sf(i,0,0)
+!         end do
 
         ! call s_mpi_abort()
 
@@ -501,48 +505,16 @@ print*, 'marker 1a'
         ixe = ix%end
         k = 0; l = 0
 
-! Simplest method using unstructured data directives (implicit attach)
-! Requires -ta=testla:deepcopy compiler flag (works for PGI 17.10 and newer)
+! A of now best method found is using managed memory
+! -> requires -ta=tesla:managed compiler flag
 
-        !$acc enter data copyin(v_vf)
-
-        !$acc enter data create(v_rs_wsL)
-        !$acc enter data create(vL_vf, vR_vf)
-        !$acc enter data create(poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
-
-! Other working method (commented out for now) which explicitly loops through
-! all indices for derived types. To do: check different in computational
-! cost between above code and explicit loops below
-
-! -- copyin --
-!        !$acc enter data copyin(v_vf(1:4))
-!        do i = 1, 4
-!            !$acc enter data copyin(v_vf(i)%sf(ixb:ixe,0,0))
-!        end do
-! -- create --
-!        !$acc enter data create(v_rs_wsL(-2:2))
-!        do s = -2, 2
-!            !$acc enter data create(v_rs_wsL(s)%vf(0:4))
-!            do i = 1, 4
-!                !$acc enter data create(v_rs_wsL(s)%vf(i)%sf(ixb:ixe,0,0))
-!            end do
-!        end do
-
-!        !$acc enter data create(vL_vf(1:4), vR_vf(1:4))
-!        do i = 1, 4
-!            !$acc enter data create(vL_vf(i)%sf(ixb:ixe,0,0))
-!            !$acc enter data create(vR_vf(i)%sf(ixb:ixe,0,0))
-!        end do
-
-!        !$acc enter data create(poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
-! --
-
+        !$acc data copyin(v_vf) copyout(vL_vf, vR_vf) present(v_rs_wsL, poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
         !$acc parallel loop collapse(3)
-        do j = ix%beg, ix%end
+        do j = ixb, ixe
            do i = 1, sys_size
               do s = -weno_polyn, weno_polyn
                     v_rs_wsL(s)%vf(i)%sf(j, k, l) = &
-                        v_vf(i)%sf(s + j, k, l)
+                        v_vf(i)%sf(s + j, k, l)                        
                 end do
             end do
         end do
@@ -626,25 +598,16 @@ print*, 'marker 1a'
 
                         vR_vf(i)%sf(j, k, l) = sum(omega*poly)
 ! -- test --
-!                        if ((j == 101) .and. (i == 1)) then
-!                                print*, sum(omega*poly)
+!                        if ((j == 101) .and. (i == 2)) then
 !                                print*, '** vL, vR ', &
-!                                        vL_vf(1)%sf(i,0,0), &
-!                                        vR_vf(1)%sf(i,0,0)
+!                                        vL_vf(2)%sf(i,0,0), &
+!                                        vR_vf(2)%sf(i,0,0)
 !                        end if
 ! ----------
                     end do
                 end do
         !$acc end parallel loop
-
-        !$acc exit data copyout(vL_vf)
-        !$acc exit data copyout(vR_vf)
-
-!        do i = 1, 4
-!            !$acc exit data copyout(vL_vf(i)%sf)
-!            !$acc exit data copyout(vR_vf(i)%sf)
-!        end do
-!        !$acc exit data delete(vL_vf, vR_vf)
+        !$acc end data
 
 !        do i = -weno_polyn, weno_polyn
 !            do j = 1, sys_size
@@ -718,6 +681,65 @@ print*, 'marker 1a'
 
 !        !$acc end parallel loop
 !        !$acc end data
+
+! -- other old code with unstructured data directives
+
+! Simplest method using unstructured data directives (implicit attach)
+! Requires -ta=tesla:deepcopy compiler flag (works for PGI 17.10 and newer)
+! UPDATE SEP 7: THIS DOES NOT WORK (some but not all derived types copied in correctly with this)
+
+!!        !$acc enter data copyin(v_vf)
+
+!!        !$acc enter data create(v_rs_wsL)!
+!!        !$acc enter data create(vL_vf, vR_vf)
+!!        !$acc enter data create(poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+
+
+! Other older (working??) method (commented out for now) which explicitly loops through
+! all indices for derived types. To do: check different in computational
+! cost between above code and explicit loops below
+
+! -- copyin --
+!        !$acc enter data copyin(v_vf(1:4))
+!        !$acc enter data copyin(v_vf)
+!        do i = 1, 4
+!           ! !$acc enter data copyin(v_vf(i)%sf(ixb:ixe,0,0))
+!           ! !$acc enter data copyin(v_vf(i)%sf(:,:,:))
+!            do j = ixb, ixe
+!                !$acc enter data copyin(v_vf(i)%sf(j,0,0))
+!            end do
+!        end do
+! -- create --
+!        !$acc enter data create(v_rs_wsL(-2:2))
+!        do s = -2, 2
+!            !$acc enter data create(v_rs_wsL(s)%vf(0:4))
+!            do i = 1, 4
+!                !$acc enter data create(v_rs_wsL(s)%vf(i)%sf(ixb:ixe,0,0))
+!            end do
+!        end do
+
+!        !$acc enter data create(vL_vf(1:4), vR_vf(1:4))
+!        do i = 1, 4
+!            !$acc enter data create(vL_vf(i)%sf(ixb:ixe,0,0))
+!            !$acc enter data create(vR_vf(i)%sf(ixb:ixe,0,0))
+!        end do
+
+!        !$acc enter data create(poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+! --
+
+! -- at end --
+!!        !$acc exit data copyout(vL_vf)
+!!        !$acc exit data copyout(vR_vf)
+
+! or more explicit version:
+!        !$acc update host (vL_vf)
+!        !$acc update host (vR_vf)
+
+!        do i = 1, 4
+!            !$acc exit data copyout(vL_vf(i)%sf)
+!            !$acc exit data copyout(vR_vf(i)%sf)
+!        end do
+!        !$acc exit data delete(vL_vf, vR_vf)
 
 ! --------------------
 ! End of other test code

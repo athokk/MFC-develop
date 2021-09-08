@@ -329,7 +329,10 @@ contains
             qK_cons_vf_flat(:,:,:,i) = qK_cons_vf(i)%sf(:,:,:)
         end do
 
-        !$acc data copyin(qK_cons_vf_flat,gammas,pi_infs) copyout(qK_prim_vf_flat) 
+!        !$acc data copyin(qK_cons_vf_flat,gammas,pi_infs) copyout(qK_prim_vf_flat) 
+!        !$acc parallel loop collapse(3) gang vector private(alpha_rho, alpha)
+
+        !$acc data copyin(qK_cons_vf, gammas, pi_infs) copyout(qK_prim_vf)
         !$acc parallel loop collapse(3) gang vector private(alpha_rho, alpha)
         do l = izb, ize
             do k = iyb, iye
@@ -352,14 +355,20 @@ contains
 
                     dyn_pres_K = 0d0
                     do i = mom_idx_b, mom_idx_e
-                        qK_prim_vf_flat(j, k, l, i) = &
-                            qK_cons_vf_flat(j, k, l, i)/max(rho_K, sgm_eps)
-                        dyn_pres_K = dyn_pres_K + 5d-1*qK_cons_vf_flat(j, k, l, i) & 
-                            * qK_prim_vf_flat(j, k, l, i)
+!                        qK_prim_vf_flat(j, k, l, i) = &
+!                            qK_cons_vf_flat(j, k, l, i)/max(rho_K, sgm_eps)
+!                        dyn_pres_K = dyn_pres_K + 5d-1*qK_cons_vf_flat(j, k, l, i) & 
+!                            * qK_prim_vf_flat(j, k, l, i)
+                        qK_prim_vf(i)%sf(j,k,l) = qK_cons_vf(i)%sf(j,k,l) & 
+                                                      / max(rho_K, sgm_eps)
+                        dyn_pres_K = dyn_pres_K + 5d-1*qK_cons_vf(i)%sf(j,k,l) &
+                                                        *qK_prim_vf(i)%sf(j,k,l)
                     end do
 
-                    qK_prim_vf_flat(j, k, l, E_idx) = ( &
-                        qK_cons_vf_flat(j, k, l, E_idx) - dyn_pres_K - pi_inf_K )/gamma_K
+!                    qK_prim_vf_flat(j, k, l, E_idx) = ( &
+!                        qK_cons_vf_flat(j, k, l, E_idx) - dyn_pres_K - pi_inf_K )/gamma_K
+                    qK_prim_vf(E_idx)%sf(j,k,l) = (qK_cons_vf(E_idx)%sf(j,k,l) &
+                                                        - dyn_pres_K - pi_inf_K)/gamma_K
 
                 end do
             end do
@@ -367,9 +376,9 @@ contains
         !$acc end parallel loop 
         !$acc end data
 
-        do i = mom_idx%beg,E_idx
-            qK_prim_vf(i)%sf(:,:,:) = qK_prim_vf_flat(:,:,:,i)
-        end do
+!        do i = mom_idx%beg,E_idx
+!            qK_prim_vf(i)%sf(:,:,:) = qK_prim_vf_flat(:,:,:,i)
+!        end do
 
 
     end subroutine s_convert_conservative_to_primitive_variables_acc

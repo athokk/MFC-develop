@@ -22,7 +22,9 @@ module m_riemann_solvers
         s_finalize_riemann_solvers_module
 
     type(scalar_field), allocatable, dimension(:) :: qL_prim_rs_vf
+    !$acc declare create (qL_prim_rs_vf)
     type(scalar_field), allocatable, dimension(:) :: qR_prim_rs_vf
+    !$acc declare create (qR_prim_rs_vf)
 
     type(bounds_info) :: is1, is2, is3
     type(bounds_info) :: ix, iy, iz
@@ -126,14 +128,16 @@ contains
             pi_infs(i) = fluid_pp(i)%pi_inf
         end do
 !print*, 'marker 4b'
-         do i = 1, sys_size
-             qL_prim_rs_vf(i)%sf = qL_prim_vf(i)%sf(ix%beg:ix%end, &
-                                                    iy%beg:iy%end, &
-                                                    iz%beg:iz%end)
-             qR_prim_rs_vf(i)%sf = qR_prim_vf(i)%sf(ix%beg + 1:ix%end + 1, &
-                                                    iy%beg:iy%end, &
-                                                    iz%beg:iz%end)
-         end do
+
+!         do i = 1, sys_size
+!             qL_prim_rs_vf(i)%sf = qL_prim_vf(i)%sf(ix%beg:ix%end, &
+!                                                    iy%beg:iy%end, &
+!                                                    iz%beg:iz%end)
+!            qR_prim_rs_vf(i)%sf = qR_prim_vf(i)%sf(ix%beg + 1:ix%end + 1, &
+!                                                    iy%beg:iy%end, &
+!                                                    iz%beg:iz%end)
+!         end do
+
 !print*, 'marker 4c'
 !        do i = 1, sys_size
 !            qL_prim_rs_vf_flat(:,:,:,i) = qL_prim_vf(i)%sf(ix%beg:ix%end, &
@@ -146,6 +150,10 @@ contains
 
 !        !$ acc data copyin(qL_prim_rs_vf_flat,qR_prim_rs_vf_flat,dir_idx,dir_flg,gammas,pi_infs) copyout(flux_vf_flat,flux_src_vf_flat) 
 !        !$ acc parallel loop collapse(3) gang vector private(alpha_rho_L, alpha_rho_R, vel_L, vel_R, alpha_L, alpha_R)
+
+        !$acc data copyin(qL_prim_rs_vf, qR_prim_rs_vf, dir_idx, dir_flg, gammas, pi_infs) copyout(flux_vf, flux_src_vf)
+
+        !$acc parallel loop collapse(3) gang vector private(alpha_rho_L, alpha_rho_R, vel_L, vel_R, alpha_L, alpha_R)
         do l = izb, ize
             do k = iyb, iye
                 do j = ixb, ixe
@@ -314,8 +322,8 @@ contains
                 end do
             end do
         end do
-!        !$ acc end parallel loop 
-!        !$ acc end data
+        !$acc end parallel loop 
+        !$acc end data
 
         ! do i = 1,1 !sys_size
         !     do j = ixb, ixe
@@ -587,7 +595,7 @@ contains
                                                       gamma_K, pi_inf_K, &
                                                       num_fluids &
                                                       )
-        !$ acc routine seq
+        !$acc routine seq
 
         real(kind(0d0)), dimension(num_fluids), intent(IN) :: alpha_rho_K, alpha_K, gammas, pi_infs
         real(kind(0d0)), intent(OUT) :: rho_K, gamma_K, pi_inf_K

@@ -332,7 +332,7 @@ contains
 !        !$acc data copyin(qK_cons_vf_flat,gammas,pi_infs) copyout(qK_prim_vf_flat) 
 !        !$acc parallel loop collapse(3) gang vector private(alpha_rho, alpha)
 
-        !$acc data copyin(qK_cons_vf, gammas, pi_infs) copyout(qK_prim_vf)
+!        !$acc data copyin(qK_cons_vf, gammas, pi_infs) copyout(qK_prim_vf)
         !$acc parallel loop collapse(3) gang vector private(alpha_rho, alpha)
         do l = izb, ize
             do k = iyb, iye
@@ -374,7 +374,7 @@ contains
             end do
         end do
         !$acc end parallel loop 
-        !$acc end data
+!        !$acc end data
 
 !        do i = mom_idx%beg,E_idx
 !            qK_prim_vf(i)%sf(:,:,:) = qK_prim_vf_flat(:,:,:,i)

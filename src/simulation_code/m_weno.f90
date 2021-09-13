@@ -508,7 +508,7 @@ contains
 ! A of now best method found is using managed memory
 ! -> requires -ta=tesla:managed compiler flag
 
-        !$acc data copyin(v_vf) copyout(vL_vf, vR_vf) present(v_rs_wsL, poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
+!        !$acc data copyin(v_vf) copyout(vL_vf, vR_vf) present(v_rs_wsL, poly_coef_L, poly_coef_R, D_L, D_R, beta_coef)
         !$acc parallel loop collapse(3)
         do j = ixb, ixe
            do i = 1, sys_size
@@ -607,7 +607,7 @@ contains
                     end do
                 end do
         !$acc end parallel loop
-        !$acc end data
+!        !$acc end data
 
 !        do i = -weno_polyn, weno_polyn
 !            do j = 1, sys_size

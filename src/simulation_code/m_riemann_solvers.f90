@@ -151,8 +151,7 @@ contains
 !        !$ acc data copyin(qL_prim_rs_vf_flat,qR_prim_rs_vf_flat,dir_idx,dir_flg,gammas,pi_infs) copyout(flux_vf_flat,flux_src_vf_flat) 
 !        !$ acc parallel loop collapse(3) gang vector private(alpha_rho_L, alpha_rho_R, vel_L, vel_R, alpha_L, alpha_R)
 
-        !$acc data copyin(qL_prim_rs_vf, qR_prim_rs_vf, dir_idx, dir_flg, gammas, pi_infs) copyout(flux_vf, flux_src_vf)
-
+!        !$acc data copyin(qL_prim_rs_vf, qR_prim_rs_vf, dir_idx, dir_flg, gammas, pi_infs) copyout(flux_vf, flux_src_vf)
         !$acc parallel loop collapse(3) gang vector private(alpha_rho_L, alpha_rho_R, vel_L, vel_R, alpha_L, alpha_R)
         do l = izb, ize
             do k = iyb, iye
@@ -323,7 +322,7 @@ contains
             end do
         end do
         !$acc end parallel loop 
-        !$acc end data
+!        !$acc end data
 
         ! do i = 1,1 !sys_size
         !     do j = ixb, ixe

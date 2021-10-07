@@ -53,6 +53,8 @@ module m_time_steppers
     use m_bubbles              !< Bubble dynamics routines
 
     use m_mpi_proxy            !< Message passing interface (MPI) module proxy
+
+    use nvtx
     ! ==========================================================================
 
     implicit none
@@ -68,9 +70,11 @@ module m_time_steppers
 
     type(scalar_field), allocatable, dimension(:) :: rhs_vf !<
     !! Cell-average RHS variables at the current time-stage
+    !$acc declare create(rhs_vf)
 
     type(vector_field), allocatable, dimension(:) :: q_prim_ts !<
     !! Cell-average primitive variables at consecutive TIMESTEPS
+    !$acc declare create(q_prim_ts)
 
     integer, private :: num_ts !<
     !! Number of time stages in the time-stepping scheme
@@ -186,6 +190,7 @@ contains
 
         do i = 1, sys_size
             allocate (rhs_vf(i)%sf(0:m, 0:n, 0:p))
+            !$acc enter data create(rhs_vf(i)%sf)
         end do
 
         ! Opening and writing the header of the run-time information file
@@ -198,10 +203,10 @@ contains
     !> 1st order TVD RK time-stepping algorithm
         !! @param t_step Current time step
     subroutine s_1st_order_tvd_rk(t_step) ! --------------------------------
-
+        use openacc
         integer, intent(IN) :: t_step
 
-        integer :: i !< Generic loop iterator
+        integer :: i, k !< Generic loop iterators
 
         ! Stage 1 of 1 =====================================================
         do i = 1, cont_idx%end
@@ -221,8 +226,9 @@ contains
             end do
         end if
         !$acc update device(q_cons_ts(1)%vf)
-       
+
         call s_alt_rhs(q_cons_ts(1)%vf, q_prim_vf, rhs_vf, t_step)
+
         if (DEBUG) print *, 'got rhs'
 
         if (run_time_info) then
@@ -235,13 +241,25 @@ contains
         end if
 
         if (t_step == t_step_stop) return
+        call nvtxStartRange("t-stepper_RHS-addition")
+!! original
+!        do i = 1, sys_size
+!            q_cons_ts(1)%vf(i)%sf(0:m, 0:n, 0:p) = &
+!                q_cons_ts(1)%vf(i)%sf(0:m, 0:n, 0:p) &
+!                + dt*rhs_vf(i)%sf
+!        end do
 
-        do i = 1, sys_size
-            q_cons_ts(1)%vf(i)%sf(0:m, 0:n, 0:p) = &
-                q_cons_ts(1)%vf(i)%sf(0:m, 0:n, 0:p) &
-                + dt*rhs_vf(i)%sf
+!! testing
+        !$acc parallel loop
+        do k = 0, m
+            do i = 1, sys_size
+                q_cons_ts(1)%vf(i)%sf(k,0,0) = &
+                    q_cons_ts(1)%vf(i)%sf(k,0,0) + &
+                    dt * rhs_vf(i)%sf(k,0,0)
+            end do
         end do
-
+        !$acc end parallel loop
+        call nvtxEndRange
         if (model_eqns == 3) call s_pressure_relaxation_procedure(q_cons_ts(1)%vf)
 
         do i = 1, cont_idx%end
@@ -258,7 +276,7 @@ contains
             end do
         end if
         ! ==================================================================
-
+        call nvtxEndRange
     end subroutine s_1st_order_tvd_rk ! ------------------------------------
 
     !> 2nd order TVD RK time-stepping algorithm

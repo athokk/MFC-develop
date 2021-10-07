@@ -549,19 +549,20 @@ contains
         ix%beg = -buff_size; ix%end = m - ix%beg; 
         iv%beg = 1; iv%end = adv_idx%end
 
-        print *,"present of q_prim_qp%vf(1): ",acc_is_present(q_prim_qp%vf(1),8)
-        print *,"present of q_cons_vf: ",acc_is_present(q_cons_vf,8)
-        print *,"present of q_prim_vf: ",acc_is_present(q_prim_vf,8)
+!        print *,"present of q_prim_qp%vf(1): ",acc_is_present(q_prim_qp%vf(1),8)
+!        print *,"present of q_cons_vf: ",acc_is_present(q_cons_vf,8)
+!        print *,"present of q_prim_vf: ",acc_is_present(q_prim_vf,8)
         do i = 1, sys_size
-            q_cons_qp%vf(i)%sf => q_cons_vf(i)%sf
-            q_prim_qp%vf(i)%sf => q_prim_vf(i)%sf
-        end do
-        print *,"present of q_prim_qp%vf(1): ",acc_is_present(q_prim_qp%vf(1),8)
-        print *,"present of q_cons_vf: ",acc_is_present(q_cons_vf,8)
-        print *,"present of q_prim_vf: ",acc_is_present(q_prim_vf,8)
+           q_cons_qp%vf(i)%sf => q_cons_vf(i)%sf
+           q_prim_qp%vf(i)%sf => q_prim_vf(i)%sf
+       end do
+!       print *,"present of q_prim_qp%vf(1): ",acc_is_present(q_prim_qp%vf(1),8)
+!       print *,"present of q_cons_vf: ",acc_is_present(q_cons_vf,8)
+!       print *,"present of q_prim_vf: ",acc_is_present(q_prim_vf,8)
 
+        call nvtxStartRange("RHS-Populate_Buffers")
         call s_populate_conservative_variables_buffers()
-
+        call nvtxEndRange
         i = 1 !Coordinate Index
 
         !!$acc data

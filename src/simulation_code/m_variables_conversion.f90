@@ -325,9 +325,9 @@ contains
             pi_infs(i) = fluid_pp(i)%pi_inf
         end do
 
-        do i = 1, sys_size
-            qK_cons_vf_flat(:,:,:,i) = qK_cons_vf(i)%sf(:,:,:)
-        end do
+!        do i = 1, sys_size
+!            qK_cons_vf_flat(:,:,:,i) = qK_cons_vf(i)%sf(:,:,:)
+!        end do
 
 !        !$acc data copyin(qK_cons_vf_flat,gammas,pi_infs) copyout(qK_prim_vf_flat) 
 !        !$acc parallel loop collapse(3) gang vector private(alpha_rho, alpha)
@@ -339,8 +339,10 @@ contains
                 do j = ixb, ixe
 
                     do i = 1, num_fluids
-                        alpha_rho(i) = qK_cons_vf_flat(j, k, l, i)
-                        alpha(i) = qK_cons_vf_flat(j, k, l, adv_idx_b + i - 1)
+!                        alpha_rho(i) = qK_cons_vf_flat(j, k, l, i)
+!                        alpha(i) = qK_cons_vf_flat(j, k, l, adv_idx_b + i - 1)
+                        alpha_rho(i) = qK_cons_vf(i)%sf(j,k,l)
+                        alpha(i) = qK_cons_vf(adv_idx_b+i-1)%sf(j,k,l)
                     end do
 
                     call s_convert_species_to_mixture_variables_acc( &

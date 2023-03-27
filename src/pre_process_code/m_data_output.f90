@@ -1,41 +1,12 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_data_output.f90
 !! @brief Contains module m_data_output
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module takes care of writing the grid and initial condition
 !!              data files into the "0" time-step directory located in the folder
 !!              associated with the rank of the local processor, which is a sub-
 !!              directory of the case folder specified by the user in the input
-!!              file pre_process.inp.
+!!              file MFC_PreProcess.inp.
 MODULE m_data_output
     
     ! Dependencies =============================================================
@@ -167,7 +138,7 @@ MODULE m_data_output
             pi_inf = fluid_pp(1)%pi_inf
 
             IF (precision==1) THEN
-                FMT="(2F30.7)"
+                FMT="(2F30.3)"
             ELSE
                 FMT="(2F40.14)"
             END IF
@@ -209,6 +180,9 @@ MODULE m_data_output
                                             (rhoref*(1.d0-q_cons_vf(4)%sf(j,0,0)))  & 
                                             ) ** lit_gamma )                        &
                                             - pi_inf
+                                    ! For cases with initial tau_e nonzero, will need to add elastic contribution here:
+!                                   ELSE IF (hypoelasticity) THEN
+!                                       not yet implemented                                        
                                     ELSE IF ((model_eqns==2 .OR. model_eqns==3) .AND. (bubbles .NEQV. .TRUE.)) THEN
                                         !Stiffened gas pressure from energy
                                         WRITE(2,FMT) x_cb(j), &
@@ -252,6 +226,13 @@ MODULE m_data_output
                         END DO
                     CLOSE(2)
                 END DO
+            END IF
+
+
+            IF (precision==1) THEN
+                FMT="(3F30.7)"
+            ELSE
+                FMT="(3F40.14)"
             END IF
 
             ! 2D
@@ -355,7 +336,8 @@ MODULE m_data_output
                             MPI_DOUBLE_PRECISION,status,ierr)
                 END DO
             ELSE
-                DO i = 1, adv_idx%end
+!                DO i = 1, adv_idx%end
+                DO i = 1, sys_size
                 var_MOK = INT(i, MPI_OFFSET_KIND)
 
                 ! Initial displacement to skip at beginning of file

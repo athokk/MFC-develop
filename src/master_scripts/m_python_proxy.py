@@ -1,30 +1,4 @@
-#!/usr/bin/python
-
-##       __  _______________
-##      /  |/  / ____/ ____/
-##     / /|_/ / /_  / /     
-##    / /  / / __/ / /___   
-##   /_/  /_/_/    \____/   
-##                       
-##  This file is part of MFC.
-##
-##  MFC is the legal property of its developers, whose names 
-##  are listed in the copyright file included with this source 
-##  distribution.
-##
-##  MFC is free software: you can redistribute it and/or modify
-##  it under the terms of the GNU General Public License as published 
-##  by the Free Software Foundation, either version 3 of the license 
-##  or any later version.
-##
-##  MFC is distributed in the hope that it will be useful,
-##  but WITHOUT ANY WARRANTY; without even the implied warranty of
-##  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-##  GNU General Public License for more details.
-##  
-##  You should have received a copy of the GNU General Public License
-##  along with MFC (LICENSE).  
-##  If not, see <http://www.gnu.org/licenses/>.
+#!/usr/bin/env python3
 
 ## @brief This module contains the parameters and functions necessary to
 ##              establish a workable proxy between Python scripting and the MFC.
@@ -39,6 +13,7 @@
 
 # Command used to query the path of the current working directory
 from os import getcwd
+import os
 
 # Command used to query the name of the current working directory
 from os.path import basename
@@ -50,6 +25,9 @@ from subprocess import PIPE, Popen
 from sys import exit
 
 import sys
+
+import pathlib
+
 # ==============================================================================
 
 
@@ -888,7 +866,27 @@ pre_process_dict =                                                             \
                     'patch_icpp(7)%v0'              : None,                     \
                     'patch_icpp(8)%v0'              : None,                     \
                     'patch_icpp(9)%v0'              : None,                     \
-                    'patch_icpp(10)%v0'             : None                      \
+                    'patch_icpp(10)%v0'             : None,                      \
+                    'patch_icpp(1)%p0'              : None,                     \
+                    'patch_icpp(2)%p0'              : None,                     \
+                    'patch_icpp(3)%p0'              : None,                     \
+                    'patch_icpp(4)%p0'              : None,                     \
+                    'patch_icpp(5)%p0'              : None,                     \
+                    'patch_icpp(6)%p0'              : None,                     \
+                    'patch_icpp(7)%p0'              : None,                     \
+                    'patch_icpp(8)%p0'              : None,                     \
+                    'patch_icpp(9)%p0'              : None,                     \
+                    'patch_icpp(10)%p0'             : None,                      \
+                    'patch_icpp(1)%m0'              : None,                     \
+                    'patch_icpp(2)%m0'              : None,                     \
+                    'patch_icpp(3)%m0'              : None,                     \
+                    'patch_icpp(4)%m0'              : None,                     \
+                    'patch_icpp(5)%m0'              : None,                     \
+                    'patch_icpp(6)%m0'              : None,                     \
+                    'patch_icpp(7)%m0'              : None,                     \
+                    'patch_icpp(8)%m0'              : None,                     \
+                    'patch_icpp(9)%m0'              : None,                     \
+                    'patch_icpp(10)%m0'             : None                      \
 }
 # ==============================================================================
 
@@ -921,8 +919,11 @@ simulation_dict =                                                              \
                     'char_decomp'                   : None,                    \
                     'mapped_weno'                   : None,                    \
                     'mp_weno'                       : None,                    \
+                    'riemann_flat'                       : None,                    \
+                    'weno_flat'                       : None,                    \
                     'weno_avg'                      : None,                    \
                     'weno_Re_flux'                  : None,                    \
+                    'cu_mpi'                       : None,                    \
                     'riemann_solver'                : None,                    \
                     'wave_speeds'                   : None,                    \
                     'avg_state'                     : None,                    \
@@ -1295,6 +1296,8 @@ simulation_dict =                                                              \
                     'Mono(1)%npulse'                : None,                     \
                     'Mono(1)%pulse'                 : None,                     \
                     'Mono(1)%support'               : None,                     \
+                    'Mono(1)%foc_length'            : None,                     \
+                    'Mono(1)%aperture'              : None,                     \
                     'Mono(2)%loc(1)'                : None,                     \
                     'Mono(2)%loc(2)'                : None,                     \
                     'Mono(2)%loc(3)'                : None,                     \
@@ -1304,6 +1307,8 @@ simulation_dict =                                                              \
                     'Mono(2)%npulse'                : None,                     \
                     'Mono(2)%pulse'                 : None,                     \
                     'Mono(2)%support'               : None,                     \
+                    'Mono(2)%foc_length'            : None,                     \
+                    'Mono(2)%aperture'              : None,                     \
                     'Mono(3)%loc(1)'                : None,                     \
                     'Mono(3)%loc(2)'                : None,                     \
                     'Mono(3)%loc(3)'                : None,                     \
@@ -1313,6 +1318,8 @@ simulation_dict =                                                              \
                     'Mono(3)%npulse'                : None,                     \
                     'Mono(3)%pulse'                 : None,                     \
                     'Mono(3)%support'               : None,                     \
+                    'Mono(3)%foc_length'            : None,                     \
+                    'Mono(3)%aperture'              : None,                     \
                     'Mono(4)%loc(1)'                : None,                     \
                     'Mono(4)%loc(2)'                : None,                     \
                     'Mono(4)%loc(3)'                : None,                     \
@@ -1615,7 +1622,7 @@ pbs_dict =                                                                     \
 
 # CONTAINS =====================================================================
 
-def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
+def f_execute_mfc_component_SHB(comp_name, case_dict, mfc_dir, engine, sub_name): # ----------
     # Description: The following function receives the name of the MFC component
     #              the user wishes to execute, the case dictionary, the location
     #              of the MFC folder and lastly, the configuration of the engine
@@ -1627,27 +1634,151 @@ def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
     #              component's executable by submitting the batch file to PBS,
     #              otherwise, it runs the executable serially, directly from the
     #              command-line.
-    
-    
+
+
     # Enabling access to the MFC component and PBS dictionaries
     global pre_process_dict, simulation_dict, post_process_dict, pbs_dict
-    
-    
+
+    # Checking the validity of the configuration of the engine
+    if (engine != 'parallel') and (engine != 'serial'):
+        print('\n' + comp_name + '>> Unsupported engine configuration. ' \
+                                 'Exiting ...' + '\n')
+        exit(1)
+
+
+    # Checking whether the MFC component selected by the user exists
+    if (comp_name != 'pre_process' ) and \
+       (comp_name != 'simulation'  ) and \
+       (comp_name != 'post_process'):
+        print('\n' + 'Unsupported choice of MFC component to execute. ' \
+                   + 'Exiting ...' + '\n')
+        exit(1)
+
+
+    # Checking the consistency of the case dictionary with respect to the MFC
+    # component and PBS dictionaries
+    for parameter in case_dict:
+        if ( (parameter in pre_process_dict) == False) and \
+           (  (parameter in simulation_dict) == False) and \
+           ((parameter in post_process_dict) == False) and \
+           (         (parameter in pbs_dict) == False):
+               print('\n' + comp_name + '>> Unsupported parameter choice ' \
+                          + parameter + '. Exiting ...' + '\n')
+               exit(1)
+
+
+    # Updating the values in the PBS dictionary using the values provided by the
+    # user in the case dictionary
+    for parameter in case_dict:
+        if (parameter in pbs_dict) == True:
+            pbs_dict[parameter] = case_dict[parameter]
+
+
+    # Outputting the component's start-up message
+    print('\n' + comp_name + '>> Preparing ' + engine + ' job ...' + '\n')
+
+
+    # Setting the directory location for the MFC component
+    comp_dir = mfc_dir + '/' + comp_name + '_code'
+
+    makefile = 'makefile_richardson'
+    if sys.platform == 'darwin':
+        makefile = 'makefile'
+
+    # Compiling the MFC component's code if necessary
+    cmd_status = Popen('make -C ' + comp_dir + ' all', shell=True, stdout=PIPE, universal_newlines=True)
+    output, errors = cmd_status.communicate()
+
+    if (cmd_status.returncode != 0):
+        exit(cmd_status.returncode)
+
+
+    # Generating input file to be read in by the MFC component's executable
+    f_create_input_file(comp_name, case_dict)
+
+
+     # If the engine is configured serially, the job, i.e. the executable of the
+    # component, is run in the command-line, else, for a parallel configuration,
+    # a bash script is generated and the job is submitted to a queue via PBS.
+    if engine == 'serial':
+        print('\n' + comp_name + '>> Serial job in progress ...' + '\n')
+        #cmd_status = Popen('mpirun -n '+str(pbs_dict[ 'ppn' ])+' ./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE, universal_newlines=True)
+
+        cmd_status = Popen(f'mpirun -n {str(pbs_dict["ppn"])} "{mfc_dir}/../build/___current___/build/bin/{comp_name}"', shell=True, universal_newlines=True)
+        output, errors = cmd_status.communicate()
+        print('\n' + output)
+
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
+
+        print(comp_name + '>> Serial job completed!' + '\n')
+        cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE, universal_newlines=True)
+        output, errors = cmd_status.communicate()
+
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
+
+    #else if engine == 'interactive':
+    #    print '\n' + comp_name + '>> Interactive job in progress ...' + '\n'
+    #    cmd_status = Popen('./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE, universal_newlines=True)
+    #    output, errors = cmd_status.communicate()
+    #    print '\n' + output
+    #    print comp_name + '>> Serial job completed!' + '\n'
+    #    cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE, universal_newlines=True)
+    #    output, errors = cmd_status.communicate()
+    else:
+        f_create_batch_file_SHB(comp_name, case_dict, mfc_dir, sub_name)
+        # Submit job to queue (Hooke/Thomson/Darter)
+        #cmd_status = Popen('qsub ' + comp_name + '.sh', shell=True, stdout=PIPE)
+        # submit job to queue (Stampede)
+        cmd_status = Popen('sbatch ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
+        output, errors = cmd_status.communicate()
+        print('\n' + output)
+
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
+
+        print(comp_name + '>> Parallel job submitted to queue!' + '\n')
+# END: def f_execute_mfc_component ---------------------------------------------
+
+def f_execute_mfc_component(comp_name: str, case_dict, mfc_dir, engine): # ----------
+    # Description: The following function receives the name of the MFC component
+    #              the user wishes to execute, the case dictionary, the location
+    #              of the MFC folder and lastly, the configuration of the engine
+    #              with which the component will be executed. Then, given this
+    #              information, the function compiles the code for the selected
+    #              component and then writes the component's input file. A batch
+    #              file may also be generated, given the engine is configured in
+    #              parallel. If this is the case, the function then runs the
+    #              component's executable by submitting the batch file to PBS,
+    #              otherwise, it runs the executable serially, directly from the
+    #              command-line.
+
+
+    # Enabling access to the MFC component and PBS dictionaries
+    global pre_process_dict, simulation_dict, post_process_dict, pbs_dict
+
+    mfc_dir=os.path.abspath(mfc_dir)
+
+    if "pre"  in comp_name.lower(): comp_name = "pre_process"
+    if "sim"  in comp_name.lower(): comp_name = "simulation"
+    if "post" in comp_name.lower(): comp_name = "post_process"
+
     # Checking the validity of the configuration of the engine
     if (engine != 'parallel') and (engine != 'serial'):
         print('\n' + comp_name + '>> Unsupported engine configuration. Exiting ...' + '\n')
-        exit(0)
-    
-    
+        exit(1)
+
+
     # Checking whether the MFC component selected by the user exists
     if (comp_name != 'pre_process' ) and \
        (comp_name != 'simulation'  ) and \
        (comp_name != 'post_process'):
         print( '\n' + 'Unsupported choice of MFC component to execute. ' \
                    + 'Exiting ...' + '\n')
-        exit(0)
-    
-    
+        exit(1)
+
+
     # Checking the consistency of the case dictionary with respect to the MFC
     # component and PBS dictionaries
     for parameter in case_dict:
@@ -1657,16 +1788,16 @@ def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
             (  parameter not in  pbs_dict ):
                print( '\n' + comp_name + '>> Unsupported parameter choice ' \
                           + parameter + '. Exiting ...' + '\n')
-               exit(0)
-    
-    
+               exit(1)
+
+
     # Updating the values in the PBS dictionary using the values provided by the
     # user in the case dictionary
     for parameter in case_dict:
         if (parameter in pbs_dict):
             pbs_dict[parameter] = case_dict[parameter]
-    
-    
+
+
     # Checking whether the engine configuration is compatible with the values of
     # the parameters located in the PBS dictionary
 #    if engine == 'serial':
@@ -1676,7 +1807,7 @@ def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
 #                                       + 'incompatible with value(s) of '   \
 #                                       + 'parameter(s) in PBS dictionary. ' \
 #                                       + 'Exiting ...' + '\n'
-#                exit(0)
+#                exit(1)
 #    else:
 #        for parameter in pbs_dict:
 #            if pbs_dict[parameter] is None:
@@ -1684,47 +1815,53 @@ def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
 #                                       + 'incompatible with value(s) of '    \
 #                                       + 'parameter(s) in PBS dictionary. '  \
 #                                       + 'Exiting ...' + '\n'
-#                exit(0)
-    
-    
+#                exit(1)
+
+
     # Outputting the component's start-up message
     print( '\n' + comp_name + '>> Preparing ' + engine + ' job ...' + '\n')
-    
-    
+
+
     # Setting the directory location for the MFC component
     comp_dir = mfc_dir + '/' + comp_name + '_code'
 
-    makefile = 'makefile'
-
     # Compiling the MFC component's code if necessary
-    cmd_status = Popen('make -C ' + comp_dir + ' all', shell=True, stdout=PIPE)
-    output, errors = cmd_status.communicate()
-    
-    
+    #cmd_status = Popen(f'./mfc.py --build {comp_dir} all', shell=True, stdout=PIPE, universal_newlines=True)
+    #output, errors = cmd_status.communicate()
+
+
     # Generating input file to be read in by the MFC component's executable
     f_create_input_file(comp_name, case_dict)
-    
-    
+
+
     # If the engine is configured serially, the job, i.e. the executable of the
     # component, is run in the command-line, else, for a parallel configuration,
     # a bash script is generated and the job is submitted to a queue via PBS.
     if engine == 'serial':
         print( '\n' + comp_name + '>> Serial job in progress ...' + '\n')
-        #cmd_status = Popen('./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE)
-        cmd_status = Popen('mpirun -n '+str(pbs_dict[ 'ppn' ])+ ' '+comp_dir+'/'+comp_name, shell=True )
+        #cmd_status = Popen('./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE, universal_newlines=True)
+
+        cmd_status = Popen(f'mpirun -n {str(pbs_dict["ppn"])} "{mfc_dir}/../build/___current___/build/bin/{comp_name}"', shell=True, universal_newlines=True)
         output, errors = cmd_status.communicate()
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
         #print '\n' + output
+
         print( comp_name + '>> Serial job completed!' + '\n')
-        #cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE)
+        #cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE, universal_newlines=True)
         #output, errors = cmd_status.communicate()
     else:
         f_create_batch_file(comp_name, case_dict, mfc_dir)
         # Submit job to queue (qsub)
-        # cmd_status = Popen('qsub ' + comp_name + '.sh', shell=True, stdout=PIPE)
+        # cmd_status = Popen('qsub ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
         # submit job to queue (sbatch)
-        cmd_status = Popen('sbatch ' + comp_name + '.sh', shell=True, stdout=PIPE)
+        cmd_status = Popen('sbatch ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
         output, errors = cmd_status.communicate()
         print( '\n' + output)
+
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
+
         print( comp_name + '>> Parallel job submitted to queue!' + '\n')
 # END: def f_execute_mfc_component ---------------------------------------------
 
@@ -1734,12 +1871,12 @@ def f_create_input_file(comp_name, case_dict): # -------------------------------
     #              of the MFC component for which the file is to be created and
     #              the case dictionary from which the parameters will be used to
     #              populate the file.
-    
-    
+
+
     # Enabling access to the MFC component dictionaries
     global pre_process_dict, simulation_dict, post_process_dict
-    
-    
+
+
     # Updating the values in the relevant MFC component dictionary using the
     # values provided by the user in the case dictionary
     if comp_name == 'pre_process':
@@ -1757,56 +1894,56 @@ def f_create_input_file(comp_name, case_dict): # -------------------------------
             if parameter in post_process_dict:
                 post_process_dict[parameter] = case_dict[parameter]
         comp_dict = post_process_dict
-    
-    
+
+
     # Setting the location of the input file
     file_loc = comp_name + '.inp'
-    
-    
+
+
     # Opening and obtaining a handle for it
     file_id = open(file_loc, 'w')
-    
-    
+
+
     # Populating the file's header information
     file_id.write('&user_inputs\n')
-    
-    
+
+
     # Populating the body of the input file
     for parameter in comp_dict:
         if comp_dict[parameter] is not None:
             file_id.write(parameter + ' = ' + str(comp_dict[parameter]) + '\n')
-    
+
     # OTS: end statement for namelist [gfortran compatibility]
     file_id.write('&end\n')
-    
+
     # Populating the file's footer information
     file_id.write('/')
-    
-    
+
+
     # Closing the input file
     file_id.close()
 # END: def f_create_input_file -------------------------------------------------
 
 
-def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
+def f_create_batch_file_SHB(comp_name, case_dict, mfc_dir,sub_name): # ----------------------
     # Description: The following function generates a batch file given the name
     #              of the MFC component for which the file is to be created, the
     #              case dictionary from which the parameters will be used to
     #              populate the file, and the location of the MFC folder.
-    
-    
+
+
     # Enabling access to the PBS dictionary
     global pbs_dict
-    
-    
+
+
     # Setting the location of the batch file
     file_loc = comp_name + '.sh'
-    
-    
+
+
     # Opening and obtaining a handle for it
     file_id = open(file_loc, 'w')
-    
-    
+
+
     # Populating Batch File  ===================================================
     file_id.write(                                                             \
                                                                                \
@@ -1814,11 +1951,218 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         '#!/bin/sh'                                                     + '\n' \
                                                                                \
         # Account to be charged for the job:
+        # (Darter/Gordon)
+        # '#PBS -A TG-CTS120005'                                          + '\n' \
+        # (Stampede)
+        #'#SBATCH -A TG-CTS120005'                                       + '\n' \
+                                                                               \
+        # Name of the queue to which the job should be submitted:
+        # (Hooke/Thomson/Darter/Gordon)
+        # '#PBS -q ' + str(pbs_dict['queue'])                             + '\n' \
+        # (Stampede)
+        # '#SBATCH -p ' + str(pbs_dict['queue'])                          + '\n' \
+        # (Comet)
+        '#SBATCH --partition=' + str(pbs_dict['queue'])                 + '\n' \
+                                                                               \
+        # Name of the job to be submitted to the scheduler:
+        # (Hooke/Thomson/Darter/Gordon)
+        # '#PBS -N ' + comp_name                                          + '\n' \
+        # (Stampede)
+        # '#SBATCH -J ' + comp_name                                       + '\n' \
+        # (Comet/Richardson)
+        '#SBATCH --job-name=' + sub_name                               + '\n' \
+                                                                               \
+        # Node(s) and processor(s) per node (ppn) for job:
+        # (Thomson)
+        # '#PBS -l nodes=' + str(pbs_dict['nodes'])                              \
+        #        + ':ppn=' + str(pbs_dict[ 'ppn' ])                       + '\n' \
+        # (Hooke)
+        # '#PBS -l nodes=0' + str(pbs_dict['nodes'])                             \
+        #        + ':ppn=' + str(pbs_dict[ 'ppn' ])                       + '\n' \
+        # (Darter)
+        # '#PBS -l size=' + str( pbs_dict['nodes']*pbs_dict['ppn']               \
+        #                      + min(1,( pbs_dict['nodes']                       \
+        #                              * pbs_dict[ 'ppn' ] )%16)                 \
+        #                      * (16 - ( pbs_dict['nodes']                       \
+        #                              * pbs_dict[ 'ppn' ] )%16) )        + '\n' \
+        # (Stampede)
+        # '#SBATCH -n ' + str( pbs_dict['nodes']*pbs_dict['ppn']                 \
+        #                      + min(1,( pbs_dict['nodes']                       \
+        #                              * pbs_dict[ 'ppn' ] )%16)                 \
+        #                      * (16 - ( pbs_dict['nodes']                       \
+        #                              * pbs_dict[ 'ppn' ] )%16) )        + '\n' \
+        # (Gordon)
+        # '#PBS -l nodes=' + str(pbs_dict['nodes'])                              \
+        #        + ':ppn=' + str(pbs_dict[ 'ppn' ]) + ':native'           + '\n' \
+        # (Comet)
+        #'#SBATCH --nodes=' + str(pbs_dict['nodes'])                      + '\n' \
+        #'#SBATCH --ntasks-per-node=' + str(pbs_dict['ppn'])              + '\n' \
+        #'#SBATCH --switches=' + '1'                                      + '\n' \
+        #                                                                       \
+        # (Richardson)
+        #'#SBATCH -n ' + str( pbs_dict['nodes']*pbs_dict['ppn'])                \
+                #              + ' --ntasks-per-node=' + str(pbs_dict['ppn'])    + '\n' \
+        '#SBATCH -n ' + str( pbs_dict['nodes']*pbs_dict['ppn'])         + '\n' \
+                                                                               \
+        # (Richardson)
+        #'#SBATCH --mem-per-cpu ' + str(5) + 'G'                         + '\n' \
+                                                                               \
+        # Maximum amount of time to commit to the execution of the job:
+        # (Hooke/Thomson/Gordon)
+        # '#PBS -l walltime=' + str(pbs_dict['walltime'])                 + '\n' \
+        # (Stampede/Comet)
+        '#SBATCH -t ' + str(pbs_dict['walltime'])                       + '\n' \
+                                                                               \
+        # Declare the job rerunable (y) or non-rerunable (n)
+        # (Hooke/Thomson)
+        # '#PBS -r n'                                                     + '\n' \
+                                                                               \
+        # Output standard output and error in a single file
+        # (Hooke/Thomson/Darter/Gordon?)
+        # '#PBS -j oe'                                                    + '\n' \
+        # (Stampede/Comet/Richardson)
+        '#SBATCH -o ' + comp_name + '.o%j'                              + '\n' \
+        '#SBATCH -e ' + comp_name + '.o%j'                              + '\n' \
+                                                                               \
+        # Notify by email when job begins (b), aborts (a), and/or ends (e):
+        # (Hooke/Thomson/Darter/Gordon)
+        # '#PBS -m bae'                                                   + '\n' \
+        # '#PBS -M ' + str(pbs_dict['mail_list'])                         + '\n' \
+        # (Stampede/Comet/Richardson)
+        '#SBATCH --mail-type=all'                                       + '\n' \
+        '#SBATCH --mail-user=' + str(pbs_dict['mail_list'])             + '\n' \
+                                                                               \
+        # Total number of processor(s) allocated for job execution
+        # (Hooke/Thomson/Darter/Gordon?)
+        # 'num_procs=$(cat $PBS_NODEFILE | wc -l)'                        + '\n' \
+
+        # Moving to the case directory
+        # (Hooke/Thomson/Darter/Gordon?)
+        # 'cd $PBS_O_WORKDIR'                                             + '\n' \
+                                                                               \
+        # Setting up environment variables for MPI I/O on Cray systems (Darter)
+        # 'export MPICH_PTL_UNEX_EVENTS=400000'                           + '\n' \
+                                                                               \
+        # 'export MPICH_PTL_OTHER_EVENTS=100000'                          + '\n' \
+                                                                               \
+        # 'export MPICH_UNEX_BUFFER_SIZE=536870912'                       + '\n' \
+                                                                               \
+        # 'export MPICH_MPIIO_HINTS=*:romio_ds_write=disable'             + '\n' \
+                                                                               \
+        # Setting up the output file's header information:
+        # (Hooke/Thomson/Darter/Gordon?)
+        # 'echo MFC v3.0 - Cases - ' + basename(getcwd())                        \
+        #                           + ': $PBS_JOBNAME.o${PBS_JOBID:0:7}' + '\n' \
+        # 'echo Description: $PBS_JOBID executed on $num_procs '                 \
+        # (Stampede/Comet/Richardson)
+        'echo MFC v3.0 - Cases - ' + basename(getcwd())                        \
+                               + ': $SLURM_JOB_NAME.o%j'                 + '\n' \
+        'echo Description: %j executed on $num_procs '                         \
+
+                         + 'processor\'(s)\'. The' + '\n' + 'echo '            \
+                         + '\'            \' command-line output '             \
+                         + 'information may be found below.'            + '\n' \
+        'echo Author: Vedran Coralic'                                   + '\n' \
+        'echo Start-date: `date +%D`'                                   + '\n' \
+        'echo Start-time: `date +%T`'                                   + '\n' \
+        'echo' + '\n' + 'echo'                                          + '\n' \
+        'echo \'================================ Terminal Output '             \
+             + '===============================\'' + '\n' + 'echo'      + '\n' \
+                                                                               \
+        # Starting the timer for the job execution
+        't_start=$(date +%s)'                                           + '\n' \
+        #'t_start=$(date +"%T.%3N")'                                           + '\n' \
+        # Executing job:
+        # (Hooke)
+        # '/opt/mvapich2/ch3_mrail_gen2-intel12/bin/mpirun '                     \
+        #                                + mfc_dir + '/' + comp_name             \
+        #                                + '_code' + '/' + comp_name      + '\n' \
+        # (Darter)
+        # 'aprun -n ' + str(pbs_dict['nodes']*pbs_dict['ppn']) + ' '             \
+        #                                + mfc_dir + '/' + comp_name             \
+        #                                + '_code' + '/' + comp_name      + '\n' \
+        # (Thomson)
+        # '/share/apps/openmpi-1.4.3/nag_fort/bin/mpirun '                       \
+        #                                + mfc_dir + '/' + comp_name             \
+        #                                + '_code' + '/' + comp_name      + '\n' \
+        # (Stampede/Comet)
+        #'ibrun '                                                               \
+        #                               + mfc_dir + '/' + comp_name             \
+        #                               + '_code' + '/' + comp_name      + '\n' \
+        # (Gordon)
+        # 'mpirun_rsh -np ' + str(pbs_dict['nodes']*pbs_dict['ppn']) + ' '       \
+        #                               + '-hostfile $PBS_NODEFILE '            \
+        #                               + mfc_dir + '/' + comp_name             \
+        #                               + '_code' + '/' + comp_name      + '\n' \
+        # (Richardson)
+        'mpirun '                                                               \
+            + f"{mfc_dir}/../build/___current___/build/bin/{comp_name}"
+            + '\n' \
+        # Stopping the timer for the job
+        't_stop=$(date +%s)' + '\n' + 'echo'                            + '\n' \
+        #'t_stop=$(date +"%T.%3N")' + '\n' + 'echo'                            + '\n' \
+                                                                               \
+        # Setting up the PBS output file's footer information
+        'echo \'================================================='             \
+             + '===============================\''                      + '\n' \
+        'echo' + '\n' + 'echo'                                          + '\n' \
+        'echo End-date: `date +%D`'                                     + '\n' \
+        'echo End-time: `date +%T`' + '\n' + 'echo'                     + '\n' \
+        'echo Total-time: $(expr $t_stop - $t_start)s'                  + '\n' \
+                                                                               \
+        # Removing the input file
+        #'rm -f ' + comp_name + '.inp'                                   + '\n' \
+                                                                               \
+        # Removing the batch file
+        'rm -f ' + comp_name + '.sh'                                           )
+    # END: Populating Batch File ===============================================
+
+
+    # Closing the batch file
+    file_id.close()
+
+
+    # Giving the batch file the permission to be executed
+    cmd_status = Popen('chmod +x ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
+    output, errors = cmd_status.communicate()
+
+    if (cmd_status.returncode != 0):
+        exit(cmd_status.returncode)
+
+
+def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
+    # Description: The following function generates a batch file given the name
+    #              of the MFC component for which the file is to be created, the
+    #              case dictionary from which the parameters will be used to
+    #              populate the file, and the location of the MFC folder.
+
+
+    # Enabling access to the PBS dictionary
+    global pbs_dict
+
+    # Setting the location of the batch file
+    file_loc = comp_name + '.sh'
+
+
+    # Opening and obtaining a handle for it
+    file_id = open(file_loc, 'w')
+
+
+    # Populating Batch File  ===================================================
+    file_id.write(                                                             \
+                                                                               \
+        # Script interpreter
+        '#!/bin/bash'                                                   + '\n' \
+                                                                               \
+        # Account to be charged for the job:
         # (PBS)
         # '#PBS -A xxx'                                          + '\n' \
         # (Slurm)
         # '#SBATCH -A xxx'                                       + '\n' \
-                                                                               \
+
+        # (Expanse)
+        '#SBATCH --account=cit129 '                                     + '\n' \
+                                                                                \
         # Name of the queue to which the job should be submitted:
         # (PBS)
         # '#PBS -q ' + str(pbs_dict['queue'])                             + '\n' \
@@ -1836,9 +2180,10 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         # '#PBS -l nodes=0' + str(pbs_dict['nodes'])                             \
         #        + ':ppn=' + str(pbs_dict[ 'ppn' ])                       + '\n' \
         # (Slurm)
-        '#SBATCH --nodes=' + str(pbs_dict['nodes'])                     + '\n' \
-        '#SBATCH --ntasks-per-node=' + str(pbs_dict['ppn'])             + '\n' \
-                                                                               \
+        #'#SBATCH --nodes=' + str(pbs_dict['nodes'])                     + '\n' \
+        #'#SBATCH --ntasks-per-node=' + str(pbs_dict['ppn'])             + '\n' \
+        '#SBATCH -n ' + str(pbs_dict['ppn'])                     + '\n' \
+                                                                              \
         # Maximum amount of time to commit to the execution of the job:
         # (PBS)
         # '#PBS -l walltime=' + str(pbs_dict['walltime'])                 + '\n' \
@@ -1855,15 +2200,16 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         # (Slurm)
         '#SBATCH -o ' + comp_name + '.o%j'                              + '\n' \
         '#SBATCH -e ' + comp_name + '.o%j'                              + '\n' \
+        '#SBATCH --export=ALL '                                         + '\n' \
                                                                                \
         # Notify by email when job begins (b), aborts (a), and/or ends (e):
         # (PBS)
         # '#PBS -m bae'                                                   + '\n' \
         # '#PBS -M ' + str(pbs_dict['mail_list'])                         + '\n' \
         # (Slurm)
-        '#SBATCH --mail-type=all'                                       + '\n' \
-        '#SBATCH --mail-user=' + str(pbs_dict['mail_list'])             + '\n' \
-                                                                               \
+#        '#SBATCH --mail-type=all'                                       + '\n' \
+#        '#SBATCH --mail-user=' + str(pbs_dict['mail_list'])             + '\n' \
+#                                                                               \
         #'sleep 30s'                                                     + '\n' \
         # Total number of processor(s) allocated for job execution
         # (PBS)
@@ -1905,9 +2251,9 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
          't_start=$(date +%s)'                                          + '\n' \
                                                                                \
         # Executing job:
-        'mpirun '                                                               \
-                                       + mfc_dir + '/' + comp_name             \
-                                       + '_code' + '/' + comp_name      + '\n' \
+        f'mpirun '                                                               \
+            + f"{mfc_dir}/../build/___current___/build/bin/{comp_name}"
+            + '\n' \
         # Stopping the timer for the job
         't_stop=$(date +%s)' + '\n' + 'echo'                            + '\n' \
                                                                                \
@@ -1925,15 +2271,19 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         # Removing the batch file
         'rm -f ' + comp_name + '.sh'                                           )
     # END: Populating Batch File ===============================================
-    
-    
+
+
     # Closing the batch file
     file_id.close()
-    
-    
+
+
     # Giving the batch file the permission to be executed
-    cmd_status = Popen('chmod +x ' + comp_name + '.sh', shell=True, stdout=PIPE)
+    cmd_status = Popen('chmod +x ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
     output, errors = cmd_status.communicate()
+
+    if (cmd_status.returncode != 0):
+        exit(cmd_status.returncode)
+
 # END: def f_create_batch_file -------------------------------------------------
 
 

@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_mpi_proxy.f90
 !! @brief Contains module m_mpi_proxy
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief  This module serves as a proxy to the parameters and subroutines
 !!              available in the MPI implementation's MPI module. Specifically,
@@ -90,7 +61,7 @@ MODULE m_mpi_proxy
             ! Checking whether the MPI environment has been properly intialized
             IF(ierr /= MPI_SUCCESS) THEN
                 PRINT '(A)', 'Unable to initialize MPI environment. Exiting ...'
-                CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+                CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
             END IF
             
             
@@ -112,7 +83,7 @@ MODULE m_mpi_proxy
         SUBROUTINE s_mpi_abort() ! ---------------------------------------------
             
             ! Terminating the MPI environment
-            CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+            CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
             
         END SUBROUTINE s_mpi_abort ! -------------------------------------------
         
@@ -303,6 +274,7 @@ MODULE m_mpi_proxy
             CALL MPI_BCAST(weno_order, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
             CALL MPI_BCAST(mixture_err, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
             CALL MPI_BCAST(alt_soundspeed, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
+            CALL MPI_BCAST(hypoelasticity, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
             
             CALL MPI_BCAST(bc_x%beg, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
             CALL MPI_BCAST(bc_x%end, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
@@ -327,7 +299,6 @@ MODULE m_mpi_proxy
                 CALL MPI_BCAST( fluid_pp(i)%G       , 1, &
                                 MPI_DOUBLE_PRECISION, 0, &
                                 MPI_COMM_WORLD, ierr     )
-
             END DO
             
             
@@ -603,7 +574,7 @@ MODULE m_mpi_proxy
                         PRINT '(A)', 'Unable to decompose computational ' // &
                                      'domain for selected number of ' // &
                                      'processors. Exiting ...'
-                        CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+                        CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
                     END IF
                     
                     ! Creating a new communicator using Cartesian topology
@@ -726,7 +697,7 @@ MODULE m_mpi_proxy
                         PRINT '(A)', 'Unable to decompose computational ' // &
                                      'domain for selected number of ' // &
                                      'processors. Exiting ...'
-                        CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+                        CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
                     END IF
                     
                     ! Creating a new communicator using Cartesian topology

@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_grid.f90
 !! @brief Contains module m_grid
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief  This module takes care of creating the rectilinear grid on which
 !!              the data for the initial condition will be laid out and on which
@@ -105,7 +76,7 @@ MODULE m_grid
             
             IF(stretch_x) THEN
                 
-                length = abs(x_cb(m)-x_cb(0))
+                length = abs(x_cb(m)-x_cb(-1))
                 x_cb = x_cb / length
                 x_a = x_a / length
                 x_b = x_b / length
@@ -113,9 +84,9 @@ MODULE m_grid
                 DO j = 1, loops_x
                     DO i = -1, m
                         x_cb(i) = x_cb(i) / a_x * &
-                                ( a_x + LOG(COSH(  a_x*(x_cb(i) - x_a)  )) &
-                                      + LOG(COSH(  a_x*(x_cb(i) - x_b)  )) &
-                                  - 2d0*LOG(COSH( 0.5d0*a_x*(x_b - x_a) )) )
+                                ( a_x + LOG(COSH( a_x * ( x_cb(i) - x_a )  ) ) &
+                                      + LOG(COSH( a_x * ( x_cb(i) - x_b )  ) ) &
+                                  - 2d0*LOG(COSH( a_x * ( x_b     - x_a )  / 2d0 ) ) )
                     END DO
                 END DO
                 x_cb = x_cb * length
@@ -161,15 +132,20 @@ MODULE m_grid
             
             IF(stretch_y) THEN
                 
+				length = abs(y_cb(n)-y_cb(-1))
+                y_cb = y_cb / length
+                y_a = y_a / length
+                y_b = y_b / length
                 DO j = 1, loops_y
                     DO i = -1, n
                         y_cb(i) = y_cb(i) / a_y * &
-                                ( a_y + LOG(COSH(  a_y*(y_cb(i) - y_a)  )) &
-                                      + LOG(COSH(  a_y*(y_cb(i) - y_b)  )) &
-                                  - 2d0*LOG(COSH( 0.5d0*a_y*(y_b - y_a) )) )
+                                ( a_y + LOG(COSH( a_y * ( y_cb(i) - y_a )  ) ) &
+                                      + LOG(COSH( a_y * ( y_cb(i) - y_b )  ) ) &
+                                  - 2d0*LOG(COSH( a_y * ( y_b     - y_a )  / 2d0  ) ) )
                     END DO
                 END DO
                 
+				y_cb = y_cb * length
                 y_cc = (y_cb(0:n) + y_cb(-1:n-1))/2d0
                 
                 dy = MINVAL(y_cb(0:n) - y_cb(-1:n-1))
@@ -194,15 +170,20 @@ MODULE m_grid
             
             IF(stretch_z) THEN
                 
+				length = abs(z_cb(p)-z_cb(-1))
+                z_cb = z_cb / length
+                z_a = z_a / length
+                z_b = z_b / length
                 DO j = 1, loops_z
                     DO i = -1, p
                         z_cb(i) = z_cb(i) / a_z * &
-                                ( a_z + LOG(COSH(  a_z*(z_cb(i) - z_a)  )) &
-                                      + LOG(COSH(  a_z*(z_cb(i) - z_b)  )) &
-                                  - 2d0*LOG(COSH( 0.5d0*a_z*(z_b - z_a) )) )
+                                ( a_z + LOG(COSH( a_z * ( z_cb(i) - z_a )  ) ) &
+                                      + LOG(COSH( a_z * ( z_cb(i) - z_b )  ) ) &
+                                  - 2d0*LOG(COSH( a_z * ( z_b     - z_a )  / 2d0 ) ) )
                     END DO
                 END DO
                 
+				z_cb = z_cb * length						
                 z_cc = (z_cb(0:p) + z_cb(-1:p-1))/2d0
                 
                 dz = MINVAL(z_cb(0:p) - z_cb(-1:p-1))
@@ -226,6 +207,7 @@ MODULE m_grid
         SUBROUTINE s_generate_parallel_grid(dflt_int) !-------------------------
 
             INTEGER, INTENT(IN) :: dflt_int
+            REAL(KIND(0d0)) :: length   !< domain lengths														 
 
             ! Locations of cell boundaries
             REAL(KIND(0d0)), ALLOCATABLE, DIMENSION(:) :: x_cb_glb, y_cb_glb, z_cb_glb !<
@@ -251,14 +233,20 @@ MODULE m_grid
             END DO
             x_cb_glb(m_glb) = x_domain%end
             IF (stretch_x) THEN
+				length = abs( x_cb_glb(m_glb) - x_cb_glb(-1) )
+			
+				x_cb_glb = x_cb_glb / length
+				x_a = x_a / length
+				x_b = x_b / length
                 DO j = 1, loops_x
                     DO i = -1, m_glb
                         x_cb_glb(i) = x_cb_glb(i) / a_x * &
-                            (a_x + LOG(COSH( a_x*(x_cb_glb(i) - x_a))) & 
-                                 + LOG(COSH( a_x*(x_cb_glb(i) - x_b))) & 
-                             - 2d0*LOG(COSH(0.5d0*a_x*(x_b - x_a))) )
+								( a_x + LOG( COSH( a_x * ( x_cb_glb(i) - x_a ) ) ) & 
+									  + LOG( COSH( a_x * ( x_cb_glb(i) - x_b ) ) ) & 
+								- 2d0 * LOG( COSH( a_x * ( x_b         - x_a ) / 2d0 ) ) )
                     END DO
                 END DO
+				x_cb_glb = x_cb_glb * length
             END IF
 
             ! Grid generation in the y-direction
@@ -278,14 +266,20 @@ MODULE m_grid
                 END IF
                 y_cb_glb(n_glb) = y_domain%end
                 IF (stretch_y) THEN
+					length = abs( y_cb_glb(n_glb) - y_cb_glb(-1) )
+				
+					y_cb_glb = y_cb_glb / length
+				    y_a = y_a / length
+					y_b = y_b / length
                     DO j = 1, loops_y
                         DO i = -1, n_glb
                             y_cb_glb(i) = y_cb_glb(i) / a_y * &
-                                (a_y + LOG(COSH( a_y*(y_cb_glb(i) - y_a))) & 
-                                     + LOG(COSH( a_y*(y_cb_glb(i) - y_b))) & 
-                                 - 2d0*LOG(COSH(0.5d0*a_y*(y_b - y_a))) )
+                                ( a_y + LOG( COSH( a_y * ( y_cb_glb(i) - y_a ) ) ) & 
+                                      + LOG( COSH( a_y * ( y_cb_glb(i) - y_b ) ) ) & 
+                                - 2d0 * LOG( COSH( a_y * ( y_b         - y_a ) / 2d0 ) ) )
                         END DO
                     END DO
+					y_cb_glb = y_cb_glb * length
                 END IF
 
                 ! Grid generation in the z-direction
@@ -296,14 +290,20 @@ MODULE m_grid
                     END DO
                     z_cb_glb(p_glb) = z_domain%end
                     IF (stretch_z) THEN
+						length = abs( z_cb_glb(p_glb) - z_cb_glb(-1) )
+				
+						z_cb_glb = z_cb_glb / length
+						z_a = z_a / length
+						z_b = z_b / length
                         DO j = 1, loops_z
                             DO i = -1, p_glb
                                 z_cb_glb(i) = z_cb_glb(i) / a_z * &
-                                    (a_z + LOG(COSH( a_z*(z_cb_glb(i) - z_a))) & 
-                                         + LOG(COSH( a_z*(z_cb_glb(i) - z_b))) & 
-                                     - 2d0*LOG(COSH(0.5d0*a_z*(z_b - z_a))) )
+									( a_z + LOG( COSH( a_z *( z_cb_glb(i) - z_a))) & 
+                                          + LOG( COSH( a_z *( z_cb_glb(i) - z_b))) & 
+                                    - 2d0 * LOG( COSH( a_z *( z_b         - z_a) / 2d0 ) ) )
                             END DO
                         END DO
+					z_cb_glb = z_cb_glb * length
                     END IF
                 END IF
             END IF

@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_data_output.f90
 !! @brief Contains module m_data_output
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief The primary purpose of this module is to output the grid and the
 !!              conservative variables data at the chosen time-step interval. In
@@ -406,7 +377,6 @@ MODULE m_data_output
             END DO
             end IF
 
-
         END SUBROUTINE s_open_probe_files ! ------------------------------------
 
 
@@ -748,6 +718,7 @@ MODULE m_data_output
             REAL(KIND(0d0)) :: rho                          !< Temporary density
             REAL(KIND(0d0)), DIMENSION(2)                   :: Re !< Temporary Reynolds number
             REAL(KIND(0d0)), ALLOCATABLE, DIMENSION(:,:)    :: We !< Temporary Weber number
+            REAL(KIND(0d0)) :: E_e                          !< Temporary elastic energy contribution
 
             ! Creating or overwriting the time-step root directory
             WRITE(t_step_dir,'(A,I0,A,I0)') TRIM(case_dir) // '/p_all'
@@ -814,7 +785,7 @@ MODULE m_data_output
             pi_inf = fluid_pp(1)%pi_inf
 
             IF (precision==1) THEN
-                FMT="(2F30.7)"
+                FMT="(2F30.3)"
             ELSE
                 FMT="(2F40.14)"
             END IF
@@ -836,7 +807,8 @@ MODULE m_data_output
 
                         OPEN(2,FILE= TRIM(file_path) )
                             DO j=0,m
-                                CALL s_convert_to_mixture_variables( q_cons_vf, rho, gamma, pi_inf, Re, We, j,0,0)
+                                CALL s_convert_to_mixture_variables( q_cons_vf, rho, gamma, pi_inf, Re, We, j,0,0, &
+                                                                                                    G,fluid_pp(:)%G )
                                 lit_gamma = 1d0/gamma + 1d0
                                 
                                 IF ( ((i.ge.cont_idx%beg) .AND. (i.le.cont_idx%end))    &
@@ -857,7 +829,30 @@ MODULE m_data_output
                                             (rhoref*(1.d0-q_cons_vf(4)%sf(j,0,0)))  & 
                                             ) ** lit_gamma )                        &
                                             - pi_inf
-                                    ELSE IF ((model_eqns==2 .OR. model_eqns==3) .AND. (bubbles .NEQV. .TRUE.)) THEN
+                                    ELSE IF (hypoelasticity) THEN
+                                        ! elastic contribution to energy
+                                        E_e = 0d0
+                                        DO k = stress_idx%beg, stress_idx%end
+                                            IF (G > 1000) THEN
+                                            E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j,0,0)/rho)**2d0) &
+                                                        /(4d0*G)
+                                            ! Additional terms in 2D and 3D
+                                            IF ((k == stress_idx%beg + 1) .OR. &
+                                                  (k == stress_idx%beg + 3) .OR. &
+                                                    (k == stress_idx%beg + 4)) THEN
+                                                E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j,0,0)/rho)**2d0) &
+                                                            /(4d0*G)
+                                            END IF
+                                            END IF
+                                        END DO
+                                        
+                                        WRITE(2,FMT) x_cb(j), &
+                                            (                                       & 
+                                            q_cons_vf(E_idx)%sf(j,0,0)  -            &
+                                            0.5d0*(q_cons_vf(mom_idx%beg)%sf(j,0,0)**2.d0)/rho - &
+                                            pi_inf - E_e &
+                                            ) / gamma
+                                    ELSE IF ((model_eqns == 2.OR. model_eqns==3) .AND. (bubbles .NEQV. .TRUE.)) THEN
                                         !Stiffened gas pressure from energy
                                         WRITE(2,FMT) x_cb(j), &
                                             (                                       & 
@@ -902,6 +897,13 @@ MODULE m_data_output
                 END DO
             END IF
 
+
+            IF (precision==1) THEN
+                FMT="(3F30.7)"
+            ELSE
+                FMT="(3F40.14)"
+            END IF
+
             ! 2D
             IF ( (n>0) .AND. (p==0) ) THEN
                 DO i = 1,sys_size
@@ -915,6 +917,13 @@ MODULE m_data_output
                         END DO
                     CLOSE(2)
                 END DO
+            END IF
+
+
+            IF (precision==1) THEN
+                FMT="(4F30.7)"
+            ELSE
+                FMT="(4F40.14)"
             END IF
 
             ! 3D
@@ -1063,7 +1072,8 @@ MODULE m_data_output
                                 MPI_DOUBLE_PRECISION,status,ierr)
                 END DO
             ELSE
-                DO i = 1, adv_idx%end
+!                DO i = 1, adv_idx%end
+                DO i = 1, sys_size
                     var_MOK = INT(i, MPI_OFFSET_KIND)
 
                     ! Initial displacement to skip at beginning of file
@@ -1840,13 +1850,16 @@ MODULE m_data_output
             REAL(KIND(0d0))                                   :: gamma
             REAL(KIND(0d0))                                   :: pi_inf
             REAL(KIND(0d0))                                   :: c
-            REAL(KIND(0d0))                                   :: M00
+            REAL(KIND(0d0))                                   :: M00, M10, M01, M20, M11, M02
+            REAL(KIND(0d0))                                   :: varR, varV
             REAL(KIND(0d0)), DIMENSION(Nb)                    :: nR, R, nRdot, Rdot
             REAL(KIND(0d0))                                   :: accel
             REAL(KIND(0d0))                                   :: int_pres
             REAL(KIND(0d0))                                   :: max_pres
             REAL(KIND(0d0)), DIMENSION(2)             :: Re
             REAL(KIND(0d0)), ALLOCATABLE, DIMENSION(:,:)      :: We
+            REAL(KIND(0d0)), DIMENSION(num_fluids)            :: alpha_rho
+            REAL(KIND(0d0))                                   :: E_e
             
             INTEGER :: i,j,k,l,s !< Generic loop iterator
 
@@ -1888,6 +1901,12 @@ MODULE m_data_output
                 nRdot = 0d0; Rdot = 0d0
                 nbub = 0d0
                 M00 = 0d0
+                M10 = 0d0
+                M01 = 0d0
+                M20 = 0d0
+                M11 = 0d0
+                M02 = 0d0
+                varR = 0d0; varV = 0d0
                 alf = 0d0
 
                 ! Find probe location in terms of indices on a
@@ -1906,7 +1925,7 @@ MODULE m_data_output
                         ! Computing/Sharing necessary state variables
                         CALL s_convert_to_mixture_variables( q_cons_vf, rho, &
                                              gamma, pi_inf, &
-                                             Re, We, j-2,k,l)
+                                             Re, We, j-2,k,l,G,fluid_pp(:)%G)
                         DO s = 1, num_dims
                             vel(s) = q_cons_vf(cont_idx%end+s)%sf(j-2,k,l)/rho
                         END DO
@@ -1920,6 +1939,29 @@ MODULE m_data_output
                                 (rhoref*(1.d0-q_cons_vf(4)%sf(j-2,k,l)))  & 
                                 ) ** lit_gamma )                        &
                                 - pi_inf
+                        ELSE IF (hypoelasticity) THEN
+                            ! calculate elastic contribution to Energy
+                            E_e = 0d0
+                            DO s = stress_idx%beg, stress_idx%end
+                                IF (G > 0) THEN
+                                E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j-2,k,l)/rho)**2d0) &
+                                            /(4d0*G)
+                                ! Additional terms in 2D and 3D
+                                 IF ((s == stress_idx%beg + 1) .OR. &
+                                      (s == stress_idx%beg + 3) .OR. &
+                                       (s == stress_idx%beg + 4)) THEN
+                                     E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j-2,k,l)/rho)**2d0) &
+                                                /(4d0*G)
+                                 END IF
+                                END IF
+                            END DO
+                            
+                            pres = (                                      &
+                               q_cons_vf(E_idx)%sf(j-2,k,l)  -            &
+                               0.5d0*(q_cons_vf(mom_idx%beg)%sf(j-2,k,l)**2.d0)/rho - &
+                               pi_inf - E_e &
+                               ) / gamma 
+
                         ELSE IF (model_eqns == 2 .AND. (bubbles .NEQV. .TRUE.)) THEN
                             !Stiffened gas pressure from energy
                             pres = (                                       & 
@@ -1949,7 +1991,23 @@ MODULE m_data_output
                             CALL s_comp_n_from_cons( alf, nR, nbub)
                             IF (DEBUG) print*, 'In probe, nbub: ', nbub
 
-                            IF (qbmm) M00 = q_cons_vf(bub_idx%moms(1,1))%sf(j-2,k,l)/nbub
+                            IF (qbmm) THEN
+                                M00 = q_cons_vf(bub_idx%moms(1,1))%sf(j-2,k,l)/nbub
+                                M10 = q_cons_vf(bub_idx%moms(1,2))%sf(j-2,k,l)/nbub
+                                M01 = q_cons_vf(bub_idx%moms(1,3))%sf(j-2,k,l)/nbub
+                                M20 = q_cons_vf(bub_idx%moms(1,4))%sf(j-2,k,l)/nbub
+                                M11 = q_cons_vf(bub_idx%moms(1,5))%sf(j-2,k,l)/nbub
+                                M02 = q_cons_vf(bub_idx%moms(1,6))%sf(j-2,k,l)/nbub
+
+                                M10 = M10/M00
+                                M01 = M01/M00
+                                M20 = M20/M00
+                                M11 = M11/M00
+                                M02 = M02/M00
+
+                                varR = M20 - M10**2d0
+                                varV = M02 - M01**2d0
+                            END IF
                             R(:) = nR(:)/nbub                        
                             Rdot(:) = nRdot(:)/nbub                        
                         
@@ -1999,7 +2057,7 @@ MODULE m_data_output
                             ! Computing/Sharing necessary state variables
                             CALL s_convert_to_mixture_variables( q_cons_vf, rho, &
                                                  gamma, pi_inf, &
-                                                 Re, We, j-2,k-2,l)
+                                                 Re, We, j-2,k-2,l,G,fluid_pp(:)%G)
                             DO s = 1, num_dims
                                 vel(s) = q_cons_vf(cont_idx%end+s)%sf(j-2,k-2,l)/rho
                             END DO
@@ -2013,7 +2071,30 @@ MODULE m_data_output
                                     (rhoref*(1.d0-q_cons_vf(4)%sf(j-2,k-2,l)))  & 
                                     ) ** lit_gamma )                        &
                                     - pi_inf
-                            ELSE IF (model_eqns == 2 .AND. (bubbles .NEQV. .TRUE.)) THEN
+                            ELSE IF (hypoelasticity) THEN
+                            ! calculate elastic contribution to Energy
+                            E_e = 0d0
+                            DO s = stress_idx%beg, stress_idx%end
+                                IF (G > 0) THEN
+                                E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j-2,k-2,l)/rho)**2d0) &
+                                            /(4d0*G)
+                                ! Additional terms in 2D and 3D
+                                 IF ((s == stress_idx%beg + 1) .OR. &
+                                      (s == stress_idx%beg + 3) .OR. &
+                                       (s == stress_idx%beg + 4)) THEN
+                                     E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j-2,k-2,l)/rho)**2d0) &
+                                                /(4d0*G)
+                                 END IF
+                                END IF
+                            END DO
+                            
+                            pres = (                                      &
+                               q_cons_vf(E_idx)%sf(j-2,k-2,l)  -            &
+                               0.5d0*(q_cons_vf(mom_idx%beg)%sf(j-2,k-2,l)**2.d0)/rho - &
+                               pi_inf - E_e &
+                               ) / gamma 
+
+                            ELSE IF ((model_eqns == 2 .OR. model_eqns == 3) .AND. (bubbles .NEQV. .TRUE.)) THEN
                                 !Stiffened gas pressure from energy
                                 pres = (                                       & 
                                     q_cons_vf(E_idx)%sf(j-2,k-2,l)  -            &
@@ -2021,6 +2102,11 @@ MODULE m_data_output
                                     q_cons_vf(3)%sf(j-2,k-2,l)**2.d0)/q_cons_vf(1)%sf(j-2,k-2,l)) - &
                                     pi_inf &
                                     ) / gamma
+                                DO s = 1, num_fluids
+                                    alpha(s) = q_cons_vf(E_idx+s)%sf(j-2,k-2,l)
+                                    alpha_rho(s) = q_cons_vf(s)%sf(j-2,k-2,l)
+                                END DO
+
                             ELSE
                                 !Stiffened gas pressure from energy with bubbles
                                 pres = (                                       & 
@@ -2063,7 +2149,6 @@ MODULE m_data_output
                             ELSE
                                 c = SQRT(c)
                             END IF
-
                             accel = accel_mag(j-2,k-2,l)
                         END IF
                     END IF
@@ -2093,7 +2178,7 @@ MODULE m_data_output
                                 ! Computing/Sharing necessary state variables
                                 CALL s_convert_to_mixture_variables( q_cons_vf, rho, &
                                                      gamma, pi_inf, &
-                                                     Re, We, j-2,k-2,l-2)
+                                                     Re, We, j-2,k-2,l-2,G,fluid_pp(:)%G)
                                 DO s = 1, num_dims
                                     vel(s) = q_cons_vf(cont_idx%end+s)%sf(j-2,k-2,l-2)/rho
                                 END DO
@@ -2165,6 +2250,23 @@ MODULE m_data_output
                         CALL s_mpi_allreduce_sum(tmp,ptilde)
                         tmp = ptot
                         CALL s_mpi_allreduce_sum(tmp,ptot)
+
+                        IF (qbmm) THEN
+                            tmp = varR
+                            CALL s_mpi_allreduce_sum(tmp,varR)
+                            tmp = varV
+                            CALL s_mpi_allreduce_sum(tmp,varV)
+
+                            tmp = M10
+                            CALL s_mpi_allreduce_sum(tmp,M10)
+                            tmp = M01
+                            CALL s_mpi_allreduce_sum(tmp,M01)
+                            tmp = M20
+                            CALL s_mpi_allreduce_sum(tmp,M20)
+                            tmp = M02
+                            CALL s_mpi_allreduce_sum(tmp,M02)
+
+                        END IF
                     END IF
                 END IF
 
@@ -2172,7 +2274,7 @@ MODULE m_data_output
                     IF (n == 0) THEN
                         IF (bubbles .AND. (num_fluids <= 2)) THEN
                             IF (qbmm) THEN
-                                WRITE(i+30,'(6x,f12.6,10f28.16)') &
+                                WRITE(i+30,'(6x,f12.6,14f28.16)') &
                                     nondim_time, &
                                     rho, &
                                     vel(1), &
@@ -2181,7 +2283,13 @@ MODULE m_data_output
                                     R(1), &
                                     Rdot(1), &
                                     nR(1), &
-                                    nRdot(1)
+                                    nRdot(1), &
+                                    varR, &
+                                    varV, &
+                                    M10, &
+                                    M01, &
+                                    M20, &
+                                    M02
                             ELSE
                                 WRITE(i+30,'(6x,f12.6,8f24.8)') &
                                     nondim_time, &
@@ -2237,8 +2345,7 @@ MODULE m_data_output
                         END IF
                     ELSEIF (p == 0) THEN
                         IF (bubbles) THEN
-                            WRITE(i+30,'(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
-                                           'F24.8,F24.8,F24.8,F24.8)') &
+                            WRITE(i+30,'(6X,10F24.8)') &
                                 nondim_time, &
                                 rho, &
                                 vel(1), &
@@ -2250,11 +2357,15 @@ MODULE m_data_output
                                 R(1), &
                                 Rdot(1)
                         ELSE
-                            WRITE(i+30,'(6X,F12.6,F24.8,F24.8,F24.8)') &
+                            WRITE(i+30,'(6X,F12.6,F24.8,F24.8,F24.8,F24.8,F24.8,F24.8,F24.8)') &
                                 nondim_time, &
                                 rho, &
                                 vel(1), &
-                                pres
+                                pres, & 
+                                alpha_rho(1)/rho, &
+                                alpha_rho(2)/rho, & 
+                                alpha_rho(3)/rho, & 
+                                alpha(2)
                         END IF
                     ELSE
                         WRITE(i+30,'(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
@@ -2531,7 +2642,7 @@ MODULE m_data_output
             ! going to be written to the CoM data files
             IF (ANY(com_wrt)) THEN
                 ! num_fluids, mass, x-loc, y-loc, z-loc, x-vel, y-vel, z-vel, x-acc, y-acc, z-acc
-                ALLOCATE(q_com(num_fluids,10))
+                ALLOCATE(q_com(num_fluids,11))
                 ! num_fluids, 2 lateral directions, 5 higher moment orders
                 ALLOCATE(moments(num_fluids,2,5))
             END IF

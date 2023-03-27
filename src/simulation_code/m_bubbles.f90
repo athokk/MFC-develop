@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_bubbles.f90
 !! @brief Contains module m_bubbles
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module is used to compute the ensemble-averaged bubble dynamic variables
 MODULE m_bubbles
@@ -102,9 +73,11 @@ MODULE m_bubbles
             
             ndirs = 1; IF (n > 0) ndirs = 2; IF (p > 0) ndirs = 3
 
-            IF (idir == ndirs) THEN
-                bub_adv_src = 0.d0; bub_r_src = 0.d0; bub_v_src = 0.d0
+            
+            bub_adv_src = 0.d0; bub_r_src = 0.d0; bub_v_src = 0.d0
                                     bub_p_src = 0.d0; bub_m_src = 0.d0
+
+            IF (idir == ndirs) THEN
 
                 ! advection source
                 DO j = 0,m; DO k = 0,n; DO l = 0,p
@@ -174,7 +147,7 @@ MODULE m_bubbles
 
                     bub_v_src(q,j,k,l) = nbub(j,k,l) * rddot
                     
-                    IF (alf < 1.d-10) THEN
+                    IF (alf < 1.d-11) THEN
                         bub_adv_src(j,k,l) = 0d0
                         bub_r_src(q,j,k,l) = 0d0
                         bub_v_src(q,j,k,l) = 0d0
@@ -183,7 +156,17 @@ MODULE m_bubbles
                            bub_m_src(q,j,k,l) = 0d0
                         END IF
                     END IF
+    
                 END DO; END DO; END DO; END DO
+
+                IF (DEBUG) THEN
+                    PRINT*, 'bub rhs'
+                    PRINT*, 'bub adv', bub_adv_src(:,0,0)
+                    PRINT*, 'bub r', bub_r_src(q,:,0,0)
+                    PRINT*, 'bub v', bub_v_src(q,:,0,0)
+                    PRINT*, 'bub p', bub_p_src(q,:,0,0)
+                    PRINT*, 'bub m', bub_m_src(q,:,0,0)
+                END IF
             END IF
             
         END SUBROUTINE s_compute_bubble_source
@@ -338,7 +321,6 @@ MODULE m_bubbles
             f_rddot_RP = (-1.5d0*(fV**2d0) + (fCpbw - fCp)/fRho)/fR
 
             IF (Re_inv /= dflt_real) f_rddot_RP = f_rddot_RP - 4d0*Re_inv*fv/(fr**2d0)/fRho
-            IF (Web /= dflt_real) f_rddot_RP = f_rddot_RP - 2d0/(Web*(fr**2d0))/fRho
 
         END FUNCTION f_rddot_RP
 
@@ -387,10 +369,22 @@ MODULE m_bubbles
                     (2.D0/(Web*fR0))*((fR0/fR)**(3.d0*gam))
             ELSE
                 f_cpbw_KM = fpb 
+                ! @ t = 0, by default this is = pb0 = pl0[1] + 2*ss/(R0ref * R) computed by s_init_nonpoly 
             END IF
 
+            ! PRINT*, 'surface tension component', (3.D0/(Web*fR0))*((fR0/fR)**(3.d0*gam))
+
             IF (  Web /=dflt_real) f_cpbw_KM = f_cpbw_KM - 2.D0/(fR*Web)
+
+
             IF (Re_inv/=dflt_real) f_cpbw_KM = f_cpbw_KM - 4.D0*Re_inv*fV/fR
+
+            ! PRINT*, ((fR0/fR)**(3.d0*gam))*(3.D0/(Web*fR0))-3.D0/(fR*Web)
+            ! PRINT*, f_cpbw_KM
+
+            ! At t = 0, we have R0 = R
+            ! fcpbw = Ca - Ca + 1
+            ! Add surface tension: fcpbw = fcpbw + 2/(Web*fR0) - 2/(Web*fR)
 
         END FUNCTION f_cpbw_KM
 
@@ -424,9 +418,10 @@ MODULE m_bubbles
             IF (Re_inv/=dflt_real) cdot_star = cdot_star + 4d0*Re_inv*((fV/fR)**2d0)
 
             tmp1 = fV/fC
-            tmp2 = 1.5D0*(fV**2d0)*( tmp1/2d0-1d0 ) +   &
+            tmp2 = 1.5D0*(fV**2d0)*( tmp1/3d0-1d0 ) +   &
                    (1d0 + tmp1)*(fCpbw - fCp)/fRho  +   &
                    cdot_star * fR/(fRho*fC)
+
                  
             IF (Re_inv==dflt_real) THEN
                 f_rddot_KM = tmp2/( fR*(1d0-tmp1) ) 

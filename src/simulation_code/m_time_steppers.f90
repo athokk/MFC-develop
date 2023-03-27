@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_time_steppers.f90
 !! @brief Contains module m_time_steppers
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief The following module features a variety of time-stepping schemes.
 !!              Currently, it includes the following Runge-Kutta (RK) algorithms:
@@ -55,7 +26,7 @@ MODULE m_time_steppers
 
     USE m_bubbles              !< Bubble dynamics routines
 
-    USE m_phasechange          !< Phase change relaxation algorithms
+    USE m_phase_change         !< Phase change relaxation algorithms
 
     USE m_mpi_proxy            !< Message passing interface (MPI) module proxy
     ! ==========================================================================
@@ -179,7 +150,7 @@ MODULE m_time_steppers
             END DO
 
             IF (bubbles) THEN
-                DO i = bub_idx%beg,sys_size
+                DO i = bub_idx%beg,bub_idx%end
                     ALLOCATE(q_prim_vf(i)%sf( ix%beg:ix%end, &
                                           iy%beg:iy%end, &
                                           iz%beg:iz%end ))
@@ -215,7 +186,6 @@ MODULE m_time_steppers
             IF(proc_rank == 0 .AND. run_time_info) THEN
                 CALL s_open_run_time_information_file()
             END IF
-
 
         END SUBROUTINE s_initialize_time_steppers_module ! ---------------------
         
@@ -269,7 +239,6 @@ MODULE m_time_steppers
 
 
             IF (grid_geometry == 3) CALL s_apply_fourier_filter(q_cons_ts(1)%vf)
-
             IF (model_eqns == 3) CALL s_infinite_p_relaxation(q_cons_ts(1)%vf)
             
             DO i = 1, cont_idx%end
@@ -377,8 +346,9 @@ MODULE m_time_steppers
             INTEGER, INTENT(IN) :: t_step
             
             INTEGER :: i,j !< Generic loop iterator
-            
+            ! ==================================================================
             ! Stage 1 of 3 =====================================================
+            ! ==================================================================
             DO i = 1, cont_idx%end
                 q_prim_vf(i)%sf => q_cons_ts(1)%vf(i)%sf
             END DO
@@ -388,10 +358,7 @@ MODULE m_time_steppers
             END DO
            
             CALL s_compute_rhs(q_cons_ts(1)%vf, q_prim_vf, rhs_vf, t_step)
-
-            IF (model_eqns == 3 .AND. relax_model == 5) THEN
-                CALL s_finite_ptg_relaxation(q_cons_ts(1)%vf,rhs_vf)
-            END IF
+            !CALL s_relaxation_finite_solver(q_cons_ts(1)%vf,rhs_vf)
 
             IF(run_time_info) THEN
                 CALL s_write_run_time_information(q_prim_vf, t_step)
@@ -410,21 +377,11 @@ MODULE m_time_steppers
             END DO
             
             IF (grid_geometry == 3) CALL s_apply_fourier_filter(q_cons_ts(2)%vf)
-
-            IF (model_eqns == 3) THEN
-                IF(relax_model == 0 .OR. relax_model == 5) THEN
-                    CALL s_infinite_p_relaxation(q_cons_ts(2)%vf)
-                ELSEIF (relax_model == 4) THEN
-                     CALL s_infinite_p_relaxation_k(q_cons_ts(2)%vf)      
-                ELSEIF (relax_model == 2) THEN
-                    CALL s_infinite_pt_relaxation(q_cons_ts(2)%vf)
-                ELSEIF (relax_model == 3) THEN
-                    CALL s_infinite_ptg_relaxation(q_cons_ts(2)%vf)
-                END IF
-            END IF
+            IF (model_eqns == 3)    CALL s_relaxation_solver(q_cons_ts(2)%vf)
 
             ! ==================================================================
             ! Stage 2 of 3 =====================================================
+            ! ==================================================================
             DO i = 1, cont_idx%end
                 q_prim_vf(i)%sf => q_cons_ts(2)%vf(i)%sf
             END DO
@@ -434,9 +391,7 @@ MODULE m_time_steppers
             END DO
 
             CALL s_compute_rhs(q_cons_ts(2)%vf, q_prim_vf, rhs_vf, t_step)
-            IF (model_eqns == 3 .AND. relax_model == 5) THEN
-                CALL s_finite_ptg_relaxation(q_cons_ts(2)%vf,rhs_vf)
-            END IF
+            !CALL s_relaxation_finite_solver(q_cons_ts(2)%vf,rhs_vf)
 
             DO i = 1, sys_size
                 q_cons_ts(2)%vf(i)%sf(0:m,0:n,0:p) = &
@@ -446,26 +401,13 @@ MODULE m_time_steppers
             END DO
             
             IF (grid_geometry == 3) CALL s_apply_fourier_filter(q_cons_ts(2)%vf)
-
-            IF (model_eqns == 3) THEN
-                IF(relax_model == 0 .OR. relax_model == 5) THEN
-                    CALL s_infinite_p_relaxation(q_cons_ts(2)%vf)
-                ELSEIF (relax_model == 4) THEN
-                    CALL s_infinite_p_relaxation_k(q_cons_ts(2)%vf)                  
-                ELSEIF (relax_model == 2) THEN
-                    CALL s_infinite_pt_relaxation(q_cons_ts(2)%vf)
-                ELSEIF (relax_model == 3) THEN
-                    CALL s_infinite_ptg_relaxation(q_cons_ts(2)%vf)
-                END IF
-            END IF
+            IF (model_eqns == 3)    CALL s_relaxation_solver(q_cons_ts(2)%vf)
 
             ! ==================================================================
             ! Stage 3 of 3 =====================================================
-
+            ! ==================================================================
             CALL s_compute_rhs(q_cons_ts(2)%vf, q_prim_vf, rhs_vf, t_step) 
-            IF (model_eqns == 3 .AND. relax_model == 5) THEN
-                CALL s_finite_ptg_relaxation(q_cons_ts(2)%vf,rhs_vf)
-            END IF
+            !CALL s_relaxation_finite_solver(q_cons_ts(2)%vf,rhs_vf)
 
             DO i = 1, sys_size
                 q_cons_ts(1)%vf(i)%sf(0:m,0:n,0:p) = &
@@ -475,19 +417,8 @@ MODULE m_time_steppers
             END DO
             
             IF (grid_geometry == 3) CALL s_apply_fourier_filter(q_cons_ts(1)%vf)
+            IF (model_eqns == 3)    CALL s_relaxation_solver(q_cons_ts(1)%vf)
 
-            IF (model_eqns == 3) THEN
-                IF(relax_model == 0 .OR. relax_model == 5) THEN
-                    CALL s_infinite_p_relaxation(q_cons_ts(1)%vf)
-                ELSEIF(relax_model == 4) THEN
-                    CALL s_infinite_p_relaxation_k(q_cons_ts(1)%vf)
-                ELSEIF (relax_model == 2) THEN
-                    CALL s_infinite_pt_relaxation(q_cons_ts(1)%vf)
-                ELSEIF (relax_model == 3) THEN
-                    CALL s_infinite_ptg_relaxation(q_cons_ts(1)%vf)
-                END IF
-            END IF
-   
             DO i = 1, cont_idx%end
                 q_prim_vf(i)%sf => NULL()
             END DO
@@ -1106,6 +1037,13 @@ MODULE m_time_steppers
             DO i = mom_idx%beg, E_idx
                 DEALLOCATE(q_prim_vf(i)%sf)
             END DO
+
+            IF (hypoelasticity) THEN
+                DO i = stress_idx%beg, stress_idx%end
+                    DEALLOCATE(q_prim_vf(i)%sf)
+                END DO
+            END IF
+
             IF (model_eqns == 3) THEN
                 DO i = internalEnergies_idx%beg, internalEnergies_idx%end
                     DEALLOCATE(q_prim_vf(i)%sf)

@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_start_up.f90
 !! @brief  Contains module m_start_up
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module contains the subroutines that read in and check the
 !!              consistency of the user provided inputs.
@@ -72,6 +43,7 @@ MODULE m_start_up
                                    num_fluids, mpp_lim, adv_alphan,           &
                                    weno_order, bc_x,                          &
                                    bc_y, bc_z, fluid_pp, format, precision,   &
+                                   hypoelasticity, G,                         &
                                    alpha_rho_wrt, rho_wrt, mom_wrt, vel_wrt,  &
                                    E_wrt, pres_wrt, alpha_wrt, gamma_wrt,     &
                                    heat_ratio_wrt, pi_inf_wrt, pres_inf_wrt,  &

@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_global_parameters.f90
 !! @brief Contains module m_global_parameters
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module contains all of the parameters characterizing the
 !!      computational domain, simulation algorithm, stiffened equation of
@@ -140,6 +111,7 @@ MODULE m_global_parameters
     INTEGER           :: gamma_idx                 !< Index of specific heat ratio func. eqn.
     INTEGER           :: alf_idx                   !< Index of specific heat ratio func. eqn.
     INTEGER           :: pi_inf_idx                !< Index of liquid stiffness func. eqn.
+    TYPE(bounds_info) :: stress_idx                !< Index of elastic shear stress eqns
     !> @}
 
     !> @name Boundary conditions in the x-, y- and z-coordinate directions
@@ -263,7 +235,7 @@ MODULE m_global_parameters
     LOGICAL         :: polytropic
     LOGICAL         :: polydisperse
     INTEGER         :: thermal  !< 1 = adiabatic, 2 = isotherm, 3 = transfer
-    REAL(KIND(0d0)) :: R_n, R_v, phi_vn, phi_nv, Pe_c, Tw
+    REAL(KIND(0d0)) :: R_n, R_v, phi_vn, phi_nv, Pe_c, Tw, G
     REAL(KIND(0d0)), DIMENSION(:), ALLOCATABLE :: k_n, k_v, pb0, mass_n0, mass_v0, Pe_T 
     REAL(KIND(0d0)), DIMENSION(:), ALLOCATABLE :: Re_trans_T, Re_trans_c, Im_trans_T, Im_trans_c, omegaN 
     REAL(KIND(0d0)) :: poly_sigma
@@ -313,7 +285,7 @@ MODULE m_global_parameters
             alt_soundspeed = .FALSE.
             relax_model = dflt_int
             hypoelasticity = .FALSE.
-           
+
             bc_x%beg = dflt_int
             bc_x%end = dflt_int
             bc_y%beg = dflt_int
@@ -487,6 +459,11 @@ MODULE m_global_parameters
                     END IF
                 END IF          
                 
+                IF (hypoelasticity) THEN
+                    stress_idx%beg = sys_size + 1
+                    stress_idx%end = sys_size + (num_dims*(num_dims+1)) / 2
+                    sys_size = stress_idx%end
+                END IF
             ! ==================================================================
 
             ! Volume Fraction Model (6-equation model) =========================

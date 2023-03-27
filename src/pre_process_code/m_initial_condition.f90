@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_initial_condition.f90
 !! @brief Contains module m_initial_condition
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module provides a platform that is analagous to constructive
 !!              solid geometry techniques and in this way allows for the creation
@@ -355,7 +326,8 @@ MODULE m_initial_condition
             IF (bubbles) THEN
                 DO i = 1,nb
                     muR = R0(i)*patch_icpp(patch_id)%r0 ! = R0(i)
-                    muV = V0(i)*patch_icpp(patch_id)%v0 ! = 0
+                    muV = patch_icpp(patch_id)%v0 ! = 0
+
                     IF (qbmm) THEN
                         IF (dist_type == 1) THEN
                             q_prim_vf(bub_idx%fullmom(i,0,0))%sf(j,k,l) = 1d0
@@ -385,6 +357,10 @@ MODULE m_initial_condition
                     ELSE
                         q_prim_vf(bub_idx%rs(i))%sf(j,k,l) = muR
                         q_prim_vf(bub_idx%vs(i))%sf(j,k,l) = muV
+                        IF ( .NOT. polytropic ) THEN
+                            q_prim_vf(bub_idx%ps(i))%sf(j,k,l) = patch_icpp(patch_id)%p0
+                            q_prim_vf(bub_idx%ms(i))%sf(j,k,l) = patch_icpp(patch_id)%m0
+                        END IF
                     END IF
                 END DO
             END IF
@@ -451,6 +427,10 @@ MODULE m_initial_condition
                     ELSE
                         q_prim_vf(bub_idx%rs(i))%sf(j,k,l) = muR
                         q_prim_vf(bub_idx%vs(i))%sf(j,k,l) = muV
+                        IF ( .NOT. polytropic ) THEN
+                            q_prim_vf(bub_idx%ps(i))%sf(j,k,l) = patch_icpp(patch_id)%p0
+                            q_prim_vf(bub_idx%ms(i))%sf(j,k,l) = patch_icpp(patch_id)%m0
+                        END IF
                     END IF
                 END DO
             END IF
@@ -476,6 +456,15 @@ MODULE m_initial_condition
                     eta *patch_icpp(patch_id)%alpha(i-E_idx) &
                     + (1d0 - eta)   *orig_prim_vf(i)
             END DO
+
+            ! Elastic Shear Stress
+            IF (hypoelasticity) THEN
+                DO i = 1, (stress_idx%end - stress_idx%beg) + 1
+                    q_prim_vf(i+stress_idx%beg - 1)%sf(j,k,l) = &
+                        (eta * patch_icpp(patch_id)%tau_e(i) &
+                         + (1d0-eta)*orig_prim_vf(i+stress_idx%beg -1))
+                END DO
+            END IF
 
             IF (mpp_lim .AND. bubbles) THEN
                 !adjust volume fractions, according to modeled gas void fraction
@@ -553,6 +542,12 @@ MODULE m_initial_condition
                         !     + (1d0-eta)*orig_prim_vf(bub_idx%vs(i)))
                         q_prim_vf(bub_idx%rs(i))%sf(j,k,l) = muR
                         q_prim_vf(bub_idx%vs(i))%sf(j,k,l) = muV
+
+                        IF ( .NOT. polytropic ) THEN
+                            q_prim_vf(bub_idx%ps(i))%sf(j,k,l) = patch_icpp(patch_id)%p0
+                            q_prim_vf(bub_idx%ms(i))%sf(j,k,l) = patch_icpp(patch_id)%m0
+                        END IF
+
                     END IF
                 END DO
             END IF
@@ -572,8 +567,13 @@ MODULE m_initial_condition
 
             IF (bubbles .AND. (.NOT. polytropic) ) THEN
                 DO i = 1,nb
-                    q_prim_vf(bub_idx%ps(i))%sf(j,k,l) = pb0(i) 
-                    q_prim_vf(bub_idx%ms(i))%sf(j,k,l) = mass_v0(i)
+                    IF( q_prim_vf(bub_idx%ps(i))%sf(j,k,l) == dflt_real ) THEN
+                        q_prim_vf(bub_idx%ps(i))%sf(j,k,l) = pb0(i) 
+                        print*, 'setting to pb0'
+                    END IF
+                    IF( q_prim_vf(bub_idx%ms(i))%sf(j,k,l) == dflt_real ) THEN
+                        q_prim_vf(bub_idx%ms(i))%sf(j,k,l) = mass_v0(i)
+                    END IF
                 END DO
             END IF
             
@@ -1021,18 +1021,20 @@ MODULE m_initial_condition
                         ELSE
                             perturb_alpha = q_prim_vf(E_idx+perturb_flow_fluid)%sf(i,j,k)
                         END IF
-                        IF (perturb_alpha == 1d0) THEN
+                        ! IF (perturb_alpha == 1d0) THEN
                             ! Perturb partial density
 !                            CALL RANDOM_NUMBER(rand_real)
 !                            rand_real = rand_real / 1d2 / 1d3
 !                            q_prim_vf(perturb_flow_fluid)%sf(i,j,k) = q_prim_vf(perturb_flow_fluid)%sf(i,j,k) + rand_real
                             ! Perturb velocity
-                            DO l = mom_idx%beg+1, mom_idx%end
-                                CALL RANDOM_NUMBER(rand_real)
-                                rand_real = rand_real / 1d1 / 145d1
-                                q_prim_vf(l)%sf(i,j,k) = q_prim_vf(l)%sf(i,j,k) + rand_real
-                            END DO
-                        END IF
+                            CALL RANDOM_NUMBER(rand_real)
+                            rand_real = rand_real * 1.d-2
+                            q_prim_vf(mom_idx%beg)%sf(i,j,k) = (1.d0+rand_real)*q_prim_vf(mom_idx%beg)%sf(i,j,k)
+                            q_prim_vf(mom_idx%end)%sf(i,j,k) = rand_real*q_prim_vf(mom_idx%beg)%sf(i,j,k)
+                            IF (bubbles) THEN
+                                q_prim_vf(alf_idx)%sf(i,j,k) = (1.d0+rand_real)*q_prim_vf(alf_idx)%sf(i,j,k)
+                            END IF
+                        ! END IF
                     END DO
                 END DO
             END DO
@@ -1723,9 +1725,9 @@ MODULE m_initial_condition
                     !IF (model_eqns == 4) THEN
                         !reassign density
                     !IF (num_fluids == 1) THEN
-                        q_prim_vf(1)%sf(i,0,0) = &
-                            (((q_prim_vf(E_idx)%sf(i,0,0) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
-                            rhoref*(1d0-q_prim_vf(alf_idx)%sf(i,0,0))
+                     !   q_prim_vf(1)%sf(i,0,0) = &
+                     !       (((q_prim_vf(E_idx)%sf(i,0,0) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
+                      !      rhoref*(1d0-q_prim_vf(alf_idx)%sf(i,0,0))
                     !END IF
                     !ELSE IF (model_eqns == 2) THEN
                         !can manually adjust density here
@@ -1867,12 +1869,12 @@ MODULE m_initial_condition
 
                         !what variables to alter
                         !x-y bump in pressure
-                        !q_prim_vf(E_idx)%sf(i,j,0) = q_prim_vf(E_idx)%sf(i,j,0) * &
-                        !    ( 1d0 + 0.2d0*dexp(-1d0*((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0)/(2.d0*0.005d0)) )
+                        q_prim_vf(E_idx)%sf(i,j,0) = q_prim_vf(E_idx)%sf(i,j,0) * &
+                            ( 1d0 + 0.2d0*dexp(-1d0*((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0)/(2.d0*0.005d0)) )
 
                         !x-bump
-                        q_prim_vf(E_idx)%sf(i,j,0) = q_prim_vf(E_idx)%sf(i,j,0) * &
-                            ( 1d0 + 0.2d0*dexp(-1d0*((x_cb(i)-x_centroid)**2.d0)/(2.d0*0.005d0)) )
+                     !   q_prim_vf(E_idx)%sf(i,j,0) = q_prim_vf(E_idx)%sf(i,j,0) * &
+                     !       ( 1d0 + 0.2d0*dexp(-1d0*((x_cb(i)-x_centroid)**2.d0)/(2.d0*0.005d0)) )
 
                         !bump in void fraction
                         !q_prim_vf(adv_idx%beg)%sf(i,j,0) = q_prim_vf(adv_idx%beg)%sf(i,j,0) * &
@@ -1883,9 +1885,9 @@ MODULE m_initial_condition
                         !    ( 1d0 + 0.2d0*exp(-1d0*((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0)/(2.d0*0.005d0)) )
 
                         !reassign density
-                        q_prim_vf(1)%sf(i,j,0) = &
-                            (((q_prim_vf(E_idx)%sf(i,j,0) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
-                            rhoref*(1d0-q_prim_vf(alf_idx)%sf(i,j,0))
+!                        q_prim_vf(1)%sf(i,j,0) = &
+!                            (((q_prim_vf(E_idx)%sf(i,j,0) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
+!                            rhoref*(1d0-q_prim_vf(alf_idx)%sf(i,j,0))
                        
                        ! ================================================================================
 
@@ -2006,24 +2008,24 @@ MODULE m_initial_condition
                         q_prim_vf(E_idx)%sf(i,j,k) = q_prim_vf(E_idx)%sf(i,j,k) * &
                             ( 1d0 + 0.2d0*exp(-1d0 * &
                             ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
-                            /(2.d0*0.005d0)) )
+                            /(2.d0*0.5d0)) )
 
                         !bump in void fraction
-                        q_prim_vf(adv_idx%beg)%sf(i,j,k) = q_prim_vf(adv_idx%beg)%sf(i,j,k) * &
-                            ( 1d0 + 0.2d0*exp(-1d0 * &
-                            ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
-                            /(2.d0*0.005d0)) )
+                     !   q_prim_vf(adv_idx%beg)%sf(i,j,k) = q_prim_vf(adv_idx%beg)%sf(i,j,k) * &
+                     !       ( 1d0 + 0.2d0*exp(-1d0 * &
+                     !       ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
+                     !       /(2.d0*0.005d0)) )
 
                         !bump in R(x)
-                        q_prim_vf(adv_idx%end+1)%sf(i,j,k) = q_prim_vf(adv_idx%end+1)%sf(i,j,k) * &
-                            ( 1d0 + 0.2d0*exp(-1d0 * &
-                            ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
-                            /(2.d0*0.005d0)) )
+                      !  q_prim_vf(adv_idx%end+1)%sf(i,j,k) = q_prim_vf(adv_idx%end+1)%sf(i,j,k) * &
+                      !      ( 1d0 + 0.2d0*exp(-1d0 * &
+                      !      ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
+                      !      /(2.d0*0.005d0)) )
 
                         !reassign density
-                        q_prim_vf(1)%sf(i,j,k) = &
-                            (((q_prim_vf(E_idx)%sf(i,j,k) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
-                            rhoref*(1d0-q_prim_vf(E_idx+1)%sf(i,j,k))
+                       ! q_prim_vf(1)%sf(i,j,k) = &
+                       !     (((q_prim_vf(E_idx)%sf(i,j,k) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
+                       !     rhoref*(1d0-q_prim_vf(E_idx+1)%sf(i,j,k))
 
                         ! ================================================================================
 

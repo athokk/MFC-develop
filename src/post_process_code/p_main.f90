@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file p_main.f90
 !! @brief Contains program p_main
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief The post-process restructures raw unformatted data, outputted by
 !!              the simulation, into a formatted database, Silo-HDF5 or Binary,
@@ -364,8 +335,36 @@ PROGRAM p_main
             
         END IF
         ! ----------------------------------------------------------------------
-        
-        
+       
+        ! Adding elastic shear stresses to the formatted database file
+        DO i = 1, (stress_idx%end + 1)-stress_idx%beg
+            IF(hypoelasticity .AND. prim_vars_wrt) THEN
+                
+                q_sf = q_prim_vf(i-1+stress_idx%beg)%sf(        &
+                              -offset_x%beg : m + offset_x%end, &
+                              -offset_y%beg : n + offset_y%end, &
+                              -offset_z%beg : p + offset_z%end  )
+                
+                IF (fourier_decomp) THEN
+                    dft_q_sf(:,:,:) = q_sf(:,:,:)
+                    DO j = fourier_modes%beg, fourier_modes%end
+                        IF (ANY(j == (/1,2,3,5,7,9/))) THEN
+                        q_sf(:,:,:) = dft_q_sf(:,:,:)
+                        CALL s_apply_fourier_decomposition(q_sf,j)
+                        WRITE(varname, '(A,I0,A,I0)') 'tau', i, '_', j
+                        CALL s_write_variable_to_formatted_database_file(varname,t_step)
+                        END IF
+                    END DO
+                ELSE
+                    WRITE(varname, '(A,I0)') 'tau', i
+                    CALL s_write_variable_to_formatted_database_file(varname,t_step)
+                END IF
+                
+                varname(:) = ' '
+                
+            END IF
+        END DO
+
         ! Adding the pressure to the formatted database file -------------------
         IF(pres_wrt .OR. prim_vars_wrt) THEN
             

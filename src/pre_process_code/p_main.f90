@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file p_main.f90
 !! @brief Contains program p_main
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This program takes care of setting up the initial condition and
 !!              grid data for the multicomponent flow code.
@@ -98,6 +69,10 @@ PROGRAM p_main
         s_read_grid_data_files => s_read_serial_grid_data_files
         s_read_ic_data_files => s_read_serial_ic_data_files
         s_write_data_files => s_write_serial_data_files
+
+        ! Create the D directory if it doesn't exit, to store
+        ! the serial data files
+        call system('mkdir -p D')
     ELSE
         s_generate_grid => s_generate_parallel_grid
         s_read_grid_data_files => s_read_parallel_grid_data_files

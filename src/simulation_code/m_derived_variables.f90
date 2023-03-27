@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_derived_variables.f90
 !! @brief Contains module m_derived_variables
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module features subroutines that allow for the derivation of
 !!              numerous flow variables from the conservative and primitive ones.
@@ -145,8 +116,8 @@ MODULE m_derived_variables
 
             INTEGER :: i,j,k !< Generic loop iterators
 
-            ! IF ((ANY(com_wrt) .OR. ANY(cb_wrt) .OR. probe_wrt) .AND. (t_step > t_step_start + 2)) THEN
-            IF ((ANY(com_wrt) .OR. ANY(cb_wrt) .OR. probe_wrt) ) THEN
+            IF ((ANY(com_wrt) .OR. ANY(cb_wrt) .OR. probe_wrt) .AND. (t_step > t_step_start + 2)) THEN
+            !IF ((ANY(com_wrt) .OR. ANY(cb_wrt) .OR. probe_wrt) ) THEN
                 IF (ANY(com_wrt)) THEN
                     CALL s_derive_center_of_mass(q_prim_ts(0)%vf, &
                                                  q_prim_ts(1)%vf, &
@@ -556,7 +527,6 @@ MODULE m_derived_variables
                                         -  2d0*(q_prim_vf3(i)%sf(j,k,l)*q_prim_vf3(mom_idx%beg+1)%sf(j,k,l)))/(6d0*dt)
                                     ! Volume fraction
                                     q_com(i,11) = q_com(i,11) + q_prim_vf(i+adv_idx%beg-1)%sf(j,k,l)*dV
-
                                 END DO
                             END DO
                         END DO

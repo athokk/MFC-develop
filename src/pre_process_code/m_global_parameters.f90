@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_global_parameters.f90
 !! @brief Contains module m_global_parameters
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module contains all of the parameters characterizing the
 !!              computational domain, simulation algorithm, initial condition
@@ -41,8 +12,6 @@ MODULE m_global_parameters
     USE mpi                     ! Message passing interface (MPI) module
     
     USE m_derived_types         ! Definitions of the derived types
-
-    USE m_eigen                 ! Eigenvalues
     ! ==========================================================================
     
     
@@ -214,8 +183,8 @@ MODULE m_global_parameters
     REAL(KIND(0d0)), DIMENSION(:), ALLOCATABLE :: k_n, k_v, pb0, mass_n0, mass_v0, Pe_T 
     REAL(KIND(0d0)), DIMENSION(:), ALLOCATABLE :: Re_trans_T, Re_trans_c, Im_trans_T, Im_trans_c, omegaN 
     REAL(KIND(0d0)) :: poly_sigma
-    INTEGER         :: dist_type !1 = binormal, 2=lognormal-normal
-    INTEGER         :: R0_type !1 = simpson, 2 = wheeler
+    INTEGER         :: dist_type !1 = binormal, 2 = lognormal-normal
+    INTEGER         :: R0_type   !1 = simpson,  2 = wheeler
     !> @}
 
     INTEGER, ALLOCATABLE, DIMENSION(:,:,:) :: logic_grid
@@ -328,6 +297,9 @@ MODULE m_global_parameters
                 !should get all of r0's and v0's
                 patch_icpp(i)%r0              = dflt_real
                 patch_icpp(i)%v0              = dflt_real
+
+                patch_icpp(i)%p0              = dflt_real
+                patch_icpp(i)%m0              = dflt_real
             END DO
            
             ! Tait EOS
@@ -459,6 +431,7 @@ MODULE m_global_parameters
 
                     ALLOCATE( weight(nb),R0(nb),V0(nb) )
                     ALLOCATE( bub_idx%rs(nb), bub_idx%vs(nb) )
+                    ALLOCATE( bub_idx%ps(nb), bub_idx%ms(nb) )
 
                     IF (qbmm) THEN
                         ALLOCATE( bub_idx%moms(nb,nmom) )
@@ -479,7 +452,6 @@ MODULE m_global_parameters
                     ELSE
                         DO i = 1, nb
                             IF (.NOT. polytropic) THEN
-                                ALLOCATE( bub_idx%ps(nb), bub_idx%ms(nb) )
                                 fac = 4
                             ELSE
                                 fac = 2
@@ -748,6 +720,8 @@ MODULE m_global_parameters
             pb0 = pb0/pl0
             pv = pv/pl0
 
+            print*, 'pb0 nondim/final', pb0
+
             ! bubble wall temperature, normalized by T0, in the liquid
             ! keeps a constant (cold liquid assumption)
             Tw = 1.D0
@@ -945,54 +919,9 @@ MODULE m_global_parameters
 
 
         SUBROUTINE s_wheeler
-            
-            REAL(KIND(0d0)), DIMENSION(2*nb,2*nb) :: sig
-            REAL(KIND(0d0)), DIMENSION(nb,nb) :: Ja
-            REAL(KIND(0d0)), DIMENSION(2*nb) :: momRo
-            REAL(KIND(0d0)), DIMENSION(nb) :: evec, eigs, a, b
-            REAL(KIND(0d0)) :: muRo
-            INTEGER :: i,j
 
-            muRo = 1d0
-
-            a = 0d0; b = 0d0
-            sig = 0d0; Ja = 0d0
-
-            DO i = 0,2*nb-1
-                momRo(i+1) = DEXP( i*LOG(muRo) + 0.5d0*(i*poly_sigma)**2d0 )
-            END DO
-
-            DO i = 0,2*nb-1
-                sig(2,i+1) = momRo(i+1)
-            END DO
-
-            a(1) = momRo(2)/momRo(1)
-            DO i = 1,nb-1
-                DO j = i,2*nb-i-1
-                    sig(i+2,j+1) = sig(i+1,j+2) - a(i)*sig(i+1,j+1) - b(i)*sig(i,j+1)
-                    a(i+1) = -1d0*(sig(i+1,i+1)/sig(i+1,i)) + sig(i+2,i+2)/sig(i+2,i+1)
-                    b(i+1) = sig(i+2,i+1)/sig(i+1,i)
-                END DO
-            END DO
-           
-            DO i = 1,nb
-                Ja(i,i) = a(i)
-            END DO
-            DO i = 1,nb-1
-                Ja(i,i+1) = -DSQRT(ABS(b(i+1)))
-                Ja(i+1,i) = -DSQRT(ABS(b(i+1)))
-            END DO
-
-            CALL s_eigs(Ja,eigs,evec,nb)
-
-            weight(1:nb) = (evec(nb:1:-1)**2d0)*momRo(1)
-            R0(1:nb) = eigs(nb:1:-1)
-
-            IF (MINVAL(R0) < 0d0) THEN
-                PRINT*, 'Minimum R0 is negative. nb might be too large for Wheeler'
-                PRINT*, 'Aborting...'
-                STOP
-            END IF
+            print*, 's_wheeler no longer supported.'
+            stop
 
         END SUBROUTINE s_wheeler
 

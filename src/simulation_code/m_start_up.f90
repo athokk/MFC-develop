@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_start_up.f90
 !! @brief Contains module m_start_up
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief The purpose of the module is primarily to read in the files that
 !!              contain the inputs, the initial condition data and the grid data
@@ -96,14 +67,12 @@ MODULE m_start_up
         !>  The purpose of this procedure is to first verify that an
         !!      input file has been made available by the user. Provided
         !!      that this is so, the input file is then read in.
-        SUBROUTINE s_read_input_file() ! ---------------------------------------
-            
-            
-            ! Relative path to the input file provided by the user
-            CHARACTER(LEN = name_len) :: file_path = './simulation.inp'
-            
+    subroutine s_read_input_file() ! ---------------------------------------
 
-            LOGICAL :: file_exist !<
+        ! Relative path to the input file provided by the user
+        character(LEN=name_len) :: file_path = 'simulation.inp'
+
+        logical :: file_exist !<
             !! Logical used to check the existence of the input file
             
             ! Namelist of the global parameters which may be specified by user
@@ -132,7 +101,8 @@ MODULE m_start_up
                                    polytropic, thermal,                      &
                                    integral, integral_wrt, num_integrals,    &
                                    polydisperse, poly_sigma, qbmm, nnode,    &
-                                   R0_type, DEBUG, t_tol, relax_model
+                                   R0_type, DEBUG, t_tol, relax_model,		 &
+								   palpha_eps, ptgalpha_eps
             
             
             ! Checking that an input file has been provided by the user. If it
@@ -160,10 +130,9 @@ MODULE m_start_up
                 p_glb = p
 
             ELSE
-                PRINT '(A)', TRIM(file_path) // ' is missing. Exiting ...'
+                PRINT '(A)', TRIM(file_path) // ' is missing. Read input. Exiting ...'
                 CALL s_mpi_abort()
             END IF
-            
             
         END SUBROUTINE s_read_input_file ! -------------------------------------
         
@@ -189,11 +158,11 @@ MODULE m_start_up
             
             ! Logistics ========================================================
             file_path = TRIM(case_dir) // '/.'
-            
+           
             CALL my_inquire(file_path,file_exist)
 
             IF(file_exist .NEQV. .TRUE.) THEN
-                PRINT '(A)', TRIM(file_path) // ' is missing. Exiting ...'
+                PRINT '(A)', TRIM(file_path) // ' is missing. Check input. Exiting ...'
                 CALL s_mpi_abort()
             END IF
             ! ==================================================================
@@ -243,8 +212,13 @@ MODULE m_start_up
             ELSEIF( model_eqns == 2 .AND. bubbles .AND. bubble_model == 1  ) THEN
                 PRINT '(A)', 'The 5-equation bubbly flow model requires bubble_model = 2 (Keller--Miksis)'
                 CALL s_mpi_abort()
-            ELSEIF(model_eqns == 3 .AND. relax_model .LT. 0 .AND. relax_model .GT. 5) THEN
+            ELSEIF(model_eqns == 3 .AND. relax_model .LT. 0 .AND. relax_model .GT. 6) THEN
                 PRINT '(A)', 'Relaxation model untested with 6-equation model'
+                CALL s_mpi_abort()
+	    ! checking whether both palpha_eps and ptgalpha_eps are both withing the interval (0,1]	
+	    ELSEIF( ( palpha_eps <= 0d0 .OR. palpha_eps > 1d0 ) .OR. ( ptgalpha_eps <= 0d0 .OR. ptgalpha_eps > 1d0 ) ) THEN
+			    PRINT '(A)', 'palpha_eps and ptgalpha_eps must be positive, but' // &
+							 ' lower than 1. Exiting ...'
                 CALL s_mpi_abort()
             ELSEIF( bubbles .AND. bubble_model == 3 .AND. (polytropic .NEQV. .TRUE.)  ) THEN
                 PRINT '(A)', 'RP bubbles require polytropic compression'
@@ -264,9 +238,10 @@ MODULE m_start_up
             ELSEIF( bubbles .AND. weno_vars /= 2 ) THEN
                 PRINT '(A)', 'Bubble modeling requires weno_vars = 2'
                 CALL s_mpi_abort()
-            ELSEIF( bubbles .AND. riemann_solver /= 2 ) THEN
-                PRINT '(A)', 'Bubble modeling requires riemann_solver = 2'
-                CALL s_mpi_abort()
+        ! TESTING Bubbles with riemann_solver == 1
+!            ELSEIF( bubbles .AND. riemann_solver /= 2 ) THEN
+!                PRINT '(A)', 'Bubble modeling requires riemann_solver = 2'
+!                CALL s_mpi_abort()
             ELSEIF( bubbles .AND. commute_err ) THEN
                 PRINT '(A)', 'Bubble modeling is not compatible with commute_err'
                 CALL s_mpi_abort()
@@ -886,7 +861,7 @@ MODULE m_start_up
             CALL my_inquire(file_path,file_exist)
 
             IF(file_exist .NEQV. .TRUE.) THEN
-                PRINT '(A)', TRIM(file_path) // ' is missing. Exiting ...'
+                PRINT '(A)', TRIM(file_path) // ' is missing. Read serial 1. Exiting ...'
                 CALL s_mpi_abort()
             END IF
             
@@ -903,7 +878,7 @@ MODULE m_start_up
                         STATUS = 'old'            )
                 READ(2) x_cb(-1:m); CLOSE(2)
             ELSE
-                PRINT '(A)', TRIM(file_path) // ' is missing. Exiting ...'
+                PRINT '(A)', TRIM(file_path) // ' is missing. Read serial 2. Exiting ...'
                 CALL s_mpi_abort()
             END IF
             
@@ -926,7 +901,7 @@ MODULE m_start_up
                             STATUS = 'old'            )
                     READ(2) y_cb(-1:n); CLOSE(2)
                 ELSE
-                    PRINT '(A)', TRIM(file_path) // ' is missing. Exiting ...'
+                    PRINT '(A)', TRIM(file_path) // ' is missing. Read serial 3. Exiting ...'
                     CALL s_mpi_abort()
                 END IF
                 
@@ -951,7 +926,7 @@ MODULE m_start_up
                             STATUS = 'old'            )
                     READ(2) z_cb(-1:p); CLOSE(2)
                 ELSE
-                    PRINT '(A)', TRIM(file_path) // ' is missing. Exiting ...'
+                    PRINT '(A)', TRIM(file_path) // ' is missing. Read serial 4. Exiting ...'
                     CALL s_mpi_abort()
                 END IF
                 
@@ -1040,7 +1015,7 @@ MODULE m_start_up
                 CALL MPI_FILE_READ(ifile,x_cb_glb,data_size,MPI_DOUBLE_PRECISION,status,ierr)
                 CALL MPI_FILE_CLOSE(ifile,ierr)
             ELSE
-                PRINT '(A)', 'File ', TRIM(file_loc), ' is missing. Exiting...'
+                PRINT '(A)', 'File ', TRIM(file_loc), ' is missing. Read parallel. Exiting...'
                 CALL s_mpi_abort()
             END IF
 
@@ -1062,7 +1037,7 @@ MODULE m_start_up
                     CALL MPI_FILE_READ(ifile,y_cb_glb,data_size,MPI_DOUBLE_PRECISION,status,ierr)
                     CALL MPI_FILE_CLOSE(ifile,ierr)
                 ELSE
-                    PRINT '(A)', 'File ', TRIM(file_loc), ' is missing. Exiting...'
+                    PRINT '(A)', 'File ', TRIM(file_loc), ' is missing. Read parallel 2. Exiting...'
                     CALL s_mpi_abort()
                 END IF
         
@@ -1084,7 +1059,7 @@ MODULE m_start_up
                         CALL MPI_FILE_READ(ifile,z_cb_glb,data_size,MPI_DOUBLE_PRECISION,status,ierr)
                         CALL MPI_FILE_CLOSE(ifile,ierr)
                     ELSE
-                        PRINT '(A)', 'File ', TRIM(file_loc), ' is missing. Exiting...'
+                        PRINT '(A)', 'File ', TRIM(file_loc), ' is missing. Read parallel 3. Exiting...'
                         CALL s_mpi_abort()
                     END IF
             
@@ -1135,7 +1110,8 @@ MODULE m_start_up
                                     MPI_DOUBLE_PRECISION,status,ierr)
                     END DO
                 ELSE
-                    DO i = 1, adv_idx%end
+!                    DO i = 1, adv_idx%end
+                    DO i = 1, sys_size
                         var_MOK = INT(i, MPI_OFFSET_KIND)
 
                         ! Initial displacement to skip at beginning of file
@@ -1152,7 +1128,7 @@ MODULE m_start_up
 
                 CALL MPI_FILE_CLOSE(ifile,ierr)
             ELSE
-                PRINT '(A)', 'File ', TRIM(file_loc), ' is missing. Exiting...'
+                PRINT '(A)', 'File ', TRIM(file_loc), ' is missing. Read parallel 5. Exiting...'
                 CALL s_mpi_abort()
             END IF
 

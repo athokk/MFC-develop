@@ -1,35 +1,6 @@
-!!       __  _______________
-!!      /  |/  / ____/ ____/
-!!     / /|_/ / /_  / /     
-!!    / /  / / __/ / /___   
-!!   /_/  /_/_/    \____/   
-!!                       
-!!  This file is part of MFC.
-!!
-!!  MFC is the legal property of its developers, whose names 
-!!  are listed in the copyright file included with this source 
-!!  distribution.
-!!
-!!  MFC is free software: you can redistribute it and/or modify
-!!  it under the terms of the GNU General Public License as published 
-!!  by the Free Software Foundation, either version 3 of the license 
-!!  or any later version.
-!!
-!!  MFC is distributed in the hope that it will be useful,
-!!  but WITHOUT ANY WARRANTY; without even the implied warranty of
-!!  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-!!  GNU General Public License for more details.
-!!  
-!!  You should have received a copy of the GNU General Public License
-!!  along with MFC (LICENSE).  
-!!  If not, see <http://www.gnu.org/licenses/>.
-
 !>
 !! @file m_global_parameters.f90
 !! @brief Contains module m_global_parameters
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief The module contains all of the parameters describing the program
 !!              logistics, the computational domain and the simulation algorithm.
@@ -44,8 +15,6 @@ MODULE m_global_parameters
     USE mpi                    !< Message passing interface (MPI) module
     
     USE m_derived_types        !< Definitions of the derived types
-
-    USE m_eigen
     ! ==========================================================================
     
     
@@ -61,7 +30,7 @@ MODULE m_global_parameters
     REAL(KIND(0d0)), PARAMETER :: dflt_real     = -1d6  !< Default real value
     INTEGER        , PARAMETER :: dflt_int      = -100  !< Default integer value
     REAL(KIND(0d0)), PARAMETER :: sgm_eps       = 1d-16 !< Segmentation tolerance
-    INTEGER        , PARAMETER :: fourier_rings = 5     !< Fourier filter ring limit
+    INTEGER        , PARAMETER, public :: fourier_rings = 5     !< Fourier filter ring limit
     CHARACTER(LEN = path_len)  :: case_dir              !< Case folder location
     LOGICAL                    :: run_time_info         !< Run-time output flag
     LOGICAL                    :: debug                 !< Debug mode print statements
@@ -129,6 +98,8 @@ MODULE m_global_parameters
     INTEGER         :: weno_order     !< Order of the WENO reconstruction
     INTEGER         :: weno_polyn     !< Degree of the WENO polynomials (polyn)
     REAL(KIND(0d0)) :: weno_eps       !< Binding for the WENO nonlinear weights
+	REAL(KIND(0d0)) :: palpha_eps     !< trigger parameter for the  p  relaxation procedure, phase change model
+	REAL(KIND(0d0)) :: ptgalpha_eps   !< trigger parameter for the pTg relaxation procedure, phase change model
     LOGICAL         :: char_decomp    !< Characteristic decomposition
     LOGICAL         :: mapped_weno    !< WENO with mapping of nonlinear weights
     LOGICAL         :: mp_weno        !< Monotonicity preserving (MP) WENO
@@ -342,8 +313,8 @@ MODULE m_global_parameters
     ! ======================================================================
 
     ! Mathematical and Physical Constants ======================================
-    ! REAL(KIND(0d0)), PARAMETER :: pi = 3.141592653589793d0 !< Pi
-    REAL(KIND(0d0)), PARAMETER :: pi = 3.14159265358979311599796 !< Pi
+     REAL(KIND(0d0)), PARAMETER :: pi = 3.141592653589793d0 !< Pi
+    !REAL(KIND(0d0)), PARAMETER :: pi = 3.14159265358979311599796 !< Pi
     ! ==========================================================================
   
     
@@ -388,6 +359,8 @@ MODULE m_global_parameters
             weno_vars        = dflt_int
             weno_order       = dflt_int
             weno_eps         = dflt_real
+			palpha_eps 	   	 = 1.0d-06
+			ptgalpha_eps     = 1.0d-06
             char_decomp      = .FALSE.
             mapped_weno      = .FALSE.
             mp_weno          = .FALSE.
@@ -532,8 +505,7 @@ MODULE m_global_parameters
             
             
             ! Determining the degree of the WENO polynomials
-            weno_polyn = (weno_order - 1) / 2
-            
+            weno_polyn = (weno_order - 1) / 2 
             
             ! Initializing the number of fluids for which viscous effects will
             ! be non-negligible, the number of distinctive material interfaces
@@ -613,7 +585,7 @@ MODULE m_global_parameters
 
                         ALLOCATE( weight(nb),R0(nb),V0(nb) )
                         ALLOCATE( bub_idx%rs(nb), bub_idx%vs(nb) )
-
+                        ALLOCATE( bub_idx%ps(nb), bub_idx%ms(nb) )
 
                         IF (num_fluids == 1) THEN
                             gam  = 1.d0/fluid_pp(num_fluids+1)%gamma + 1.d0
@@ -628,13 +600,12 @@ MODULE m_global_parameters
                                 DO j = 1, nmom
                                     bub_idx%moms(i,j) = bub_idx%beg+(j-1)+(i-1)*nmom
                                 END DO 
-                                bub_idx%rs(i) = bub_idx%moms(i,1)
-                                bub_idx%vs(i) = bub_idx%moms(i,2)
+                                bub_idx%rs(i) = bub_idx%moms(i,2)
+                                bub_idx%vs(i) = bub_idx%moms(i,3)
                             END DO
                         ELSE
                             DO i = 1, nb
                                 IF (.NOT. polytropic) THEN
-                                    ALLOCATE( bub_idx%ps(nb), bub_idx%ms(nb) )
                                     fac = 4
                                 ELSE
                                     fac = 2
@@ -887,8 +858,8 @@ MODULE m_global_parameters
                 buff_size = 3*weno_polyn + 2
             ELSEIF(ANY(Re_size > 0)) THEN
                 buff_size = 2*weno_polyn + 2
-            ELSEIF(hypoelasticity) THEN
-                buff_size = 2*weno_polyn + 2
+!            ELSEIF(hypoelasticity) THEN
+!                buff_size = 2*weno_polyn + 2
             ELSEIF(commute_err) THEN
                 buff_size = 2*weno_polyn + 1
             ELSE
@@ -1156,26 +1127,23 @@ MODULE m_global_parameters
             CALL s_quad( nRtmp**3d0,nR3 )
             
             IF ( nR3 < 0d0 ) THEN
-                PRINT*, vftmp, nR3, nRtmp(:)
                 ! DO i = 1,nb
                     ! IF (nRtmp(i) < small_alf) THEN
                         ! nRtmp(i) = small_alf
                     ! END IF
                 ! END DO
+                ! nR3 = 1.d-12
+                PRINT*, vftmp, nR3, nRtmp(:)
                 STOP 'nR3 is negative'
-                nR3 = 1.d-12
             END IF
             IF (vftmp < 0d0) THEN
-                PRINT*, vftmp, nR3, nRtmp(:)
                 ! vftmp = small_alf
+                ! ntmp = DSQRT( (4.d0*pi/3.d0)*nR3/1.d-12 )
+                PRINT*, vftmp, nR3, nRtmp(:)
                 STOP 'vf negative'
-                ntmp = DSQRT( (4.d0*pi/3.d0)*nR3/1.d-12 )
-            ELSE
-                ntmp = DSQRT( (4.d0*pi/3.d0)*nR3/vftmp )
             END IF
 
-
-            ! ntmp = 1d0
+            ntmp = DSQRT( (4.d0*pi/3.d0)*nR3/vftmp )
 
         END SUBROUTINE s_comp_n_from_cons
 
@@ -1192,6 +1160,16 @@ MODULE m_global_parameters
             REAL(KIND(0.D0)) :: R3
 
             CALL s_quad( Rtmp**3d0,R3 ) 
+
+            IF ( R3 < 0d0 ) THEN
+                PRINT*, vftmp, R3, Rtmp(:)
+                STOP 'R3 is negative'
+            END IF
+            IF (vftmp < 0d0) THEN
+                PRINT*, vftmp, R3, Rtmp(:)
+                STOP 'vf negative'
+            END IF
+
             ntmp = (3.d0/(4.d0*pi)) * vftmp/R3
             ! ntmp = 1d0
 
@@ -1265,53 +1243,8 @@ MODULE m_global_parameters
 
         SUBROUTINE s_wheeler
             
-            REAL(KIND(0d0)), DIMENSION(2*nb,2*nb) :: sig
-            REAL(KIND(0d0)), DIMENSION(nb,nb) :: Ja
-            REAL(KIND(0d0)), DIMENSION(2*nb) :: momRo
-            REAL(KIND(0d0)), DIMENSION(nb) :: evec, eigs, a, b
-            REAL(KIND(0d0)) :: muRo
-            INTEGER :: i,j
-
-            muRo = 1d0
-
-            a = 0d0; b = 0d0
-            sig = 0d0; Ja = 0d0
-
-            DO i = 0,2*nb-1
-                momRo(i+1) = DEXP( i*LOG(muRo) + 0.5d0*(i*poly_sigma)**2d0 )
-            END DO
-
-            DO i = 0,2*nb-1
-                sig(2,i+1) = momRo(i+1)
-            END DO
-
-            a(1) = momRo(2)/momRo(1)
-            DO i = 1,nb-1
-                DO j = i,2*nb-i-1
-                    sig(i+2,j+1) = sig(i+1,j+2) - a(i)*sig(i+1,j+1) - b(i)*sig(i,j+1)
-                    a(i+1) = -1d0*(sig(i+1,i+1)/sig(i+1,i)) + sig(i+2,i+2)/sig(i+2,i+1)
-                    b(i+1) = sig(i+2,i+1)/sig(i+1,i)
-                END DO
-            END DO
-           
-            DO i = 1,nb
-                Ja(i,i) = a(i)
-            END DO
-            DO i = 1,nb-1
-                Ja(i,i+1) = -DSQRT(ABS(b(i+1)))
-                Ja(i+1,i) = -DSQRT(ABS(b(i+1)))
-            END DO
-
-            CALL s_eigs(Ja,eigs,evec,nb)
-
-            weight(1:nb) = (evec(nb:1:-1)**2d0)*momRo(1)
-            R0(1:nb) = eigs(nb:1:-1)
-
-            IF (MINVAL(R0) < 0d0) THEN
-                PRINT*, 'Minimum R0 is negative. nb might be too large for Wheeler'
-                PRINT*, 'Aborting...'
-                STOP
-            END IF
+            print*, 's_wheeler no longer supported.'
+            stop
 
         END SUBROUTINE s_wheeler
 

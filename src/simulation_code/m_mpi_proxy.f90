@@ -1,9 +1,6 @@
 !>
 !! @file m_mpi_proxy.f90
 !! @brief Contains module m_mpi_proxy
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief The module serves as a proxy to the parameters and subroutines
 !!          available in the MPI implementation's MPI module. Specifically,
@@ -57,7 +54,7 @@ MODULE m_mpi_proxy
             ! Checking whether the MPI environment has been properly intialized
             IF(ierr /= MPI_SUCCESS) THEN
                 PRINT '(A)', 'Unable to initialize MPI environment. Exiting ...'
-                CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+                CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
             END IF
             
             
@@ -78,7 +75,7 @@ MODULE m_mpi_proxy
         SUBROUTINE s_mpi_abort() ! ---------------------------------------------
 
             ! Terminating the MPI environment
-            CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+            CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
             
         END SUBROUTINE s_mpi_abort ! -------------------------------------------
         
@@ -229,6 +226,10 @@ MODULE m_mpi_proxy
                                            0, MPI_COMM_WORLD, ierr  )
             CALL MPI_BCAST(weno_eps      , 1, MPI_DOUBLE_PRECISION, &
                                            0, MPI_COMM_WORLD, ierr  )
+			CALL MPI_BCAST(palpha_eps    , 1, MPI_DOUBLE_PRECISION, &
+                                           0, MPI_COMM_WORLD, ierr  )
+			CALL MPI_BCAST(ptgalpha_eps  , 1, MPI_DOUBLE_PRECISION, &
+                                           0, MPI_COMM_WORLD, ierr  )										   
             CALL MPI_BCAST(char_decomp   , 1, MPI_LOGICAL         , &
                                            0, MPI_COMM_WORLD, ierr  )
             CALL MPI_BCAST(mapped_weno   , 1, MPI_LOGICAL         , &
@@ -285,6 +286,8 @@ MODULE m_mpi_proxy
                                            0, MPI_COMM_WORLD, ierr  )
             CALL MPI_BCAST(hypoelasticity, 1, MPI_LOGICAL         , &
                                             0, MPI_COMM_WORLD,ierr   )
+            CALL MPI_BCAST(relax_model    , 1, MPI_INTEGER         , &
+                                           0, MPI_COMM_WORLD, ierr  )
             
             CALL MPI_BCAST(bc_x%beg, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
             CALL MPI_BCAST(bc_x%end, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
@@ -309,13 +312,21 @@ MODULE m_mpi_proxy
                 CALL MPI_BCAST( fluid_pp(i)%pi_inf  ,        1      , &
                                 MPI_DOUBLE_PRECISION,        0      , &
                                 MPI_COMM_WORLD, ierr                  )
+                CALL MPI_BCAST( fluid_pp(i)%cv      ,        1      , &
+                                MPI_DOUBLE_PRECISION,        0      , &
+                                MPI_COMM_WORLD, ierr                  )
+                CALL MPI_BCAST( fluid_pp(i)%qv      ,        1      , &
+                                MPI_DOUBLE_PRECISION,        0      , &
+                                MPI_COMM_WORLD, ierr                  )
+                CALL MPI_BCAST( fluid_pp(i)%qvp      ,        1      ,&
+                                MPI_DOUBLE_PRECISION,        0      , &
+                                MPI_COMM_WORLD, ierr                  )
                 CALL MPI_BCAST( fluid_pp(i)%Re(1)   ,        2      , &
                                 MPI_DOUBLE_PRECISION,        0      , &
                                 MPI_COMM_WORLD, ierr                  )
                 CALL MPI_BCAST( fluid_pp(i)%We(1)   , num_fluids_max, &
                                 MPI_DOUBLE_PRECISION,        0      , &
                                 MPI_COMM_WORLD, ierr                  )
-
                 CALL MPI_BCAST( fluid_pp(i)%mul0  , 1, &
                                 MPI_DOUBLE_PRECISION, 0, &
                                 MPI_COMM_WORLD, ierr     )
@@ -415,7 +426,7 @@ MODULE m_mpi_proxy
                 CALL MPI_BCAST( mono(j)%length   ,              1      , &
                     MPI_DOUBLE_PRECISION,        0      , &
                     MPI_COMM_WORLD, ierr                  )
-                CALL MPI_BCAST( mono(j)%delay,              1      , &
+                CALL MPI_BCAST( mono(j)%delay    ,              1      , &
                     MPI_DOUBLE_PRECISION,        0      , &
                     MPI_COMM_WORLD, ierr                  )
                 CALL MPI_BCAST( mono(j)%dir   ,              1      , &
@@ -429,6 +440,12 @@ MODULE m_mpi_proxy
                     MPI_COMM_WORLD, ierr                  )
                 CALL MPI_BCAST( mono(j)%support   ,              1      , &
                     MPI_INTEGER,        0      , &
+                    MPI_COMM_WORLD, ierr                  ) 
+                CALL MPI_BCAST( mono(j)%foc_length   ,              1      , &
+                    MPI_DOUBLE_PRECISION,        0      , &
+                    MPI_COMM_WORLD, ierr                  )
+                CALL MPI_BCAST( mono(j)%aperture   ,              1      , &
+                    MPI_DOUBLE_PRECISION,        0      , &
                     MPI_COMM_WORLD, ierr                  )
             END DO
 

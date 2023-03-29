@@ -1,9 +1,6 @@
 !>
 !! @file m_mpi_proxy.f90
 !! @brief Contains module m_mpi_proxy
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module serves as a proxy to the parameters and subroutines
 !!              available in the MPI implementation's MPI module. Specifically,
@@ -43,7 +40,7 @@ MODULE m_mpi_proxy
             ! Checking whether the MPI environment has been properly intialized
             IF(ierr /= MPI_SUCCESS) THEN
                 PRINT '(A)', 'Unable to initialize MPI environment. Exiting ...'
-                CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+                CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
             END IF
             
             
@@ -64,7 +61,7 @@ MODULE m_mpi_proxy
         SUBROUTINE s_mpi_abort() ! ---------------------------------------------
             
             ! Terminating the MPI environment
-            CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+            CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
             
         END SUBROUTINE s_mpi_abort ! -------------------------------------------
         
@@ -185,6 +182,7 @@ MODULE m_mpi_proxy
             
             ! Simulation algorithm parameters
             CALL MPI_BCAST(model_eqns, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+            CALL MPI_BCAST(relax_model, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
             CALL MPI_BCAST(num_fluids, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
             CALL MPI_BCAST(adv_alphan, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
             CALL MPI_BCAST(mpp_lim, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
@@ -202,7 +200,8 @@ MODULE m_mpi_proxy
                                       0, MPI_COMM_WORLD, ierr  )
             CALL MPI_BCAST( bc_z%end, 1, MPI_DOUBLE_PRECISION, &
                                       0, MPI_COMM_WORLD, ierr  )
-            CALL MPI_BCAST(hypoelasticity, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
+            CALL MPI_BCAST(hypoelasticity, 1, MPI_LOGICAL,     & 
+                                      0, MPI_COMM_WORLD, ierr)
 
             CALL MPI_BCAST(parallel_io, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
             CALL MPI_BCAST(precision, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
@@ -344,6 +343,10 @@ MODULE m_mpi_proxy
                 CALL MPI_BCAST( fluid_pp(i)%G   , 1, &
                                 MPI_DOUBLE_PRECISION, 0, &
                                 MPI_COMM_WORLD, ierr    )
+                CALL MPI_BCAST( fluid_pp(i)%qv  , 1, &
+                                MPI_DOUBLE_PRECISION, 0, &
+                                MPI_COMM_WORLD, ierr     )
+
             END DO
             
             ! Tait EOS
@@ -580,7 +583,7 @@ MODULE m_mpi_proxy
                         PRINT '(A)', 'Unable to decompose computational ' // &
                                      'domain for selected number of ' // &
                                      'processors. Exiting ...'
-                        CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+                        CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
                     END IF
                     
                     ! Creating a new communicator using Cartesian topology
@@ -695,7 +698,7 @@ MODULE m_mpi_proxy
                         PRINT '(A)', 'Unable to decompose computational ' // &
                                      'domain for selected number of ' // &
                                      'processors. Exiting ...'
-                        CALL MPI_ABORT(MPI_COMM_WORLD, err_code, ierr)
+                        CALL MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
                     END IF
                     
                     ! Creating a new communicator using Cartesian topology

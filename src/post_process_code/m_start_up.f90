@@ -1,9 +1,6 @@
 !>
 !! @file m_start_up.f90
 !! @brief  Contains module m_start_up
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module contains the subroutines that read in and check the
 !!              consistency of the user provided inputs.
@@ -46,6 +43,7 @@ MODULE m_start_up
                                    num_fluids, mpp_lim, adv_alphan,           &
                                    weno_order, bc_x,                          &
                                    bc_y, bc_z, fluid_pp, format, precision,   &
+                                   hypoelasticity, G,                         &
                                    alpha_rho_wrt, rho_wrt, mom_wrt, vel_wrt,  &
                                    E_wrt, pres_wrt, alpha_wrt, gamma_wrt,     &
                                    heat_ratio_wrt, pi_inf_wrt, pres_inf_wrt,  &
@@ -57,7 +55,8 @@ MODULE m_start_up
                                    fourier_modes,                             &
                                    rhoref, pref, bubbles, R0ref, nb,          &
                                    polytropic, thermal, Ca, Web, Re_inv,      &
-                                   polydisperse, poly_sigma
+                                   polydisperse, poly_sigma, relax_model,     &
+                                   hypoelasticity
 
             
             ! Inquiring the status of the post_process.inp file

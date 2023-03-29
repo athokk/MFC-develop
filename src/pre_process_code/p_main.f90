@@ -1,9 +1,6 @@
 !>
 !! @file p_main.f90
 !! @brief Contains program p_main
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This program takes care of setting up the initial condition and
 !!              grid data for the multicomponent flow code.
@@ -72,13 +69,16 @@ PROGRAM p_main
         s_read_grid_data_files => s_read_serial_grid_data_files
         s_read_ic_data_files => s_read_serial_ic_data_files
         s_write_data_files => s_write_serial_data_files
+
+        ! Create the D directory if it doesn't exit, to store
+        ! the serial data files
+        call system('mkdir -p D')
     ELSE
         s_generate_grid => s_generate_parallel_grid
         s_read_grid_data_files => s_read_parallel_grid_data_files
         s_read_ic_data_files => s_read_parallel_ic_data_files
         s_write_data_files => s_write_parallel_data_files
     END IF
-
 
     ! Setting up the grid and the initial condition. If the grid is read in from
     ! preexisting grid data files, it is checked for consistency. If the grid is
@@ -106,9 +106,8 @@ PROGRAM p_main
     END IF
         
     IF(old_ic) CALL s_read_ic_data_files(q_cons_vf)
- 
+
     CALL s_generate_initial_condition()
-    
     CALL s_write_data_files(q_cons_vf)
 
     ! Disassociate pointers for serial and parallel I/O

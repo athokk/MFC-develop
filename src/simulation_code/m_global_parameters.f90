@@ -1,9 +1,6 @@
 !>
 !! @file m_global_parameters.f90
 !! @brief Contains module m_global_parameters
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief The module contains all of the parameters describing the program
 !!              logistics, the computational domain and the simulation algorithm.
@@ -18,8 +15,6 @@ MODULE m_global_parameters
     USE mpi                    !< Message passing interface (MPI) module
     
     USE m_derived_types        !< Definitions of the derived types
-
-    USE m_eigen
     ! ==========================================================================
     
     
@@ -35,12 +30,12 @@ MODULE m_global_parameters
     REAL(KIND(0d0)), PARAMETER :: dflt_real     = -1d6  !< Default real value
     INTEGER        , PARAMETER :: dflt_int      = -100  !< Default integer value
     REAL(KIND(0d0)), PARAMETER :: sgm_eps       = 1d-16 !< Segmentation tolerance
-    INTEGER        , PARAMETER :: fourier_rings = 5     !< Fourier filter ring limit
+    INTEGER        , PARAMETER, public :: fourier_rings = 5     !< Fourier filter ring limit
     CHARACTER(LEN = path_len)  :: case_dir              !< Case folder location
     LOGICAL                    :: run_time_info         !< Run-time output flag
     LOGICAL                    :: debug                 !< Debug mode print statements
     INTEGER                    :: t_step_old            !< Existing IC/grid folder
-    REAL(KIND(0d0)), PARAMETER :: small_alf     = 1d-7 !< Small alf tolerance
+    REAL(KIND(0d0)), PARAMETER :: small_alf     = 1d-7  !< Small alf tolerance
     ! ==========================================================================
     
     
@@ -103,6 +98,8 @@ MODULE m_global_parameters
     INTEGER         :: weno_order     !< Order of the WENO reconstruction
     INTEGER         :: weno_polyn     !< Degree of the WENO polynomials (polyn)
     REAL(KIND(0d0)) :: weno_eps       !< Binding for the WENO nonlinear weights
+	REAL(KIND(0d0)) :: palpha_eps     !< trigger parameter for the  p  relaxation procedure, phase change model
+	REAL(KIND(0d0)) :: ptgalpha_eps   !< trigger parameter for the pTg relaxation procedure, phase change model
     LOGICAL         :: char_decomp    !< Characteristic decomposition
     LOGICAL         :: mapped_weno    !< WENO with mapping of nonlinear weights
     LOGICAL         :: mp_weno        !< Monotonicity preserving (MP) WENO
@@ -129,6 +126,7 @@ MODULE m_global_parameters
     LOGICAL         :: We_wave_speeds !< Account for capillary effects when computing the contact wave speed
     LOGICAL         :: lsq_deriv      !< Use linear least squares to calculate normals and curvatures
     LOGICAL         :: hypoelasticity !< Hypoelastic modeling
+    INTEGER         :: relax_model    !< Infinite relaxation model 
 
     INTEGER         :: cpu_start, cpu_end, cpu_rate
     
@@ -300,7 +298,6 @@ MODULE m_global_parameters
     REAL(KIND(0d0)) :: gam
     !> @}
 
-
     !> @name Acoustic monopole parameters
     !> @{
     LOGICAL         :: monopole !< Monopole switch
@@ -316,8 +313,8 @@ MODULE m_global_parameters
     ! ======================================================================
 
     ! Mathematical and Physical Constants ======================================
-    ! REAL(KIND(0d0)), PARAMETER :: pi = 3.141592653589793d0 !< Pi
-    REAL(KIND(0d0)), PARAMETER :: pi = 3.14159265358979311599796 !< Pi
+     REAL(KIND(0d0)), PARAMETER :: pi = 3.141592653589793d0 !< Pi
+    !REAL(KIND(0d0)), PARAMETER :: pi = 3.14159265358979311599796 !< Pi
     ! ==========================================================================
   
     
@@ -362,6 +359,8 @@ MODULE m_global_parameters
             weno_vars        = dflt_int
             weno_order       = dflt_int
             weno_eps         = dflt_real
+			palpha_eps 	   	 = 1.0d-06
+			ptgalpha_eps     = 1.0d-06
             char_decomp      = .FALSE.
             mapped_weno      = .FALSE.
             mp_weno          = .FALSE.
@@ -390,6 +389,7 @@ MODULE m_global_parameters
             parallel_io      = .FALSE.
             precision        = 2
             hypoelasticity   = .FALSE.
+            relax_model      = dflt_int
             
             bc_x%beg = dflt_int; bc_x%end = dflt_int
             bc_y%beg = dflt_int; bc_y%end = dflt_int
@@ -401,6 +401,9 @@ MODULE m_global_parameters
             DO i = 1, num_fluids_max
                 fluid_pp(i)%gamma   = dflt_real
                 fluid_pp(i)%pi_inf  = dflt_real
+                fluid_pp(i)%cv      = dflt_real
+                fluid_pp(i)%qv      = dflt_real
+                fluid_pp(i)%qvp     = dflt_real
                 fluid_pp(i)%Re(:)   = dflt_real
                 fluid_pp(i)%We(:)   = dflt_real
                 fluid_pp(i)%mul0    = dflt_real
@@ -445,12 +448,14 @@ MODULE m_global_parameters
                     mono(j)%loc(i) = dflt_real
                 END DO
                 mono(j)%mag    = dflt_real
-                mono(j)%length = dflt_real
+                mono(j)%length = dflt_real 
                 mono(j)%delay  = dflt_real
                 mono(j)%dir    = 1.d0
                 mono(j)%npulse = 1.d0
                 mono(j)%pulse = 1
                 mono(j)%support = 1
+                mono(j)%foc_length = dflt_real
+                mono(j)%aperture = dflt_real
             END DO
 
             fd_order = dflt_int
@@ -500,8 +505,7 @@ MODULE m_global_parameters
             
             
             ! Determining the degree of the WENO polynomials
-            weno_polyn = (weno_order - 1) / 2
-            
+            weno_polyn = (weno_order - 1) / 2 
             
             ! Initializing the number of fluids for which viscous effects will
             ! be non-negligible, the number of distinctive material interfaces
@@ -660,7 +664,8 @@ MODULE m_global_parameters
                     adv_idx%end  = E_idx + num_fluids
                     internalEnergies_idx%beg  = adv_idx%end + 1
                     internalEnergies_idx%end  = adv_idx%end + num_fluids
-                    sys_size     = internalEnergies_idx%end
+                    sys_size     = internalEnergies_idx%end                       
+
                 ELSE IF(model_eqns == 4) THEN
                     cont_idx%beg = 1 ! one continuity equation
                     cont_idx%end = 1 !num_fluids
@@ -853,8 +858,8 @@ MODULE m_global_parameters
                 buff_size = 3*weno_polyn + 2
             ELSEIF(ANY(Re_size > 0)) THEN
                 buff_size = 2*weno_polyn + 2
-            ELSEIF(hypoelasticity) THEN
-                buff_size = 2*weno_polyn + 2
+!            ELSEIF(hypoelasticity) THEN
+!                buff_size = 2*weno_polyn + 2
             ELSEIF(commute_err) THEN
                 buff_size = 2*weno_polyn + 1
             ELSE
@@ -1238,53 +1243,8 @@ MODULE m_global_parameters
 
         SUBROUTINE s_wheeler
             
-            REAL(KIND(0d0)), DIMENSION(2*nb,2*nb) :: sig
-            REAL(KIND(0d0)), DIMENSION(nb,nb) :: Ja
-            REAL(KIND(0d0)), DIMENSION(2*nb) :: momRo
-            REAL(KIND(0d0)), DIMENSION(nb) :: evec, eigs, a, b
-            REAL(KIND(0d0)) :: muRo
-            INTEGER :: i,j
-
-            muRo = 1d0
-
-            a = 0d0; b = 0d0
-            sig = 0d0; Ja = 0d0
-
-            DO i = 0,2*nb-1
-                momRo(i+1) = DEXP( i*LOG(muRo) + 0.5d0*(i*poly_sigma)**2d0 )
-            END DO
-
-            DO i = 0,2*nb-1
-                sig(2,i+1) = momRo(i+1)
-            END DO
-
-            a(1) = momRo(2)/momRo(1)
-            DO i = 1,nb-1
-                DO j = i,2*nb-i-1
-                    sig(i+2,j+1) = sig(i+1,j+2) - a(i)*sig(i+1,j+1) - b(i)*sig(i,j+1)
-                    a(i+1) = -1d0*(sig(i+1,i+1)/sig(i+1,i)) + sig(i+2,i+2)/sig(i+2,i+1)
-                    b(i+1) = sig(i+2,i+1)/sig(i+1,i)
-                END DO
-            END DO
-           
-            DO i = 1,nb
-                Ja(i,i) = a(i)
-            END DO
-            DO i = 1,nb-1
-                Ja(i,i+1) = -DSQRT(ABS(b(i+1)))
-                Ja(i+1,i) = -DSQRT(ABS(b(i+1)))
-            END DO
-
-            CALL s_eigs(Ja,eigs,evec,nb)
-
-            weight(1:nb) = (evec(nb:1:-1)**2d0)*momRo(1)
-            R0(1:nb) = eigs(nb:1:-1)
-
-            IF (MINVAL(R0) < 0d0) THEN
-                PRINT*, 'Minimum R0 is negative. nb might be too large for Wheeler'
-                PRINT*, 'Aborting...'
-                STOP
-            END IF
+            print*, 's_wheeler no longer supported.'
+            stop
 
         END SUBROUTINE s_wheeler
 

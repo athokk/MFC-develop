@@ -1,9 +1,6 @@
 !>
 !! @file m_derived_types.f90
 !! @brief Contains module m_derived_types
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module features the definitions of all the custom-defined
 !!        derived types that are utilized throughout the post_process code.
@@ -60,6 +57,10 @@ MODULE m_derived_types
         REAL(KIND(0d0)) :: M_v  !< Bubble constants (see Preston (2007), Ando (2010))
         REAL(KIND(0d0)) :: mu_v !< Bubble constants (see Preston (2007), Ando (2010))
         REAL(KIND(0d0)) :: k_v  !< Bubble constants (see Preston (2007), Ando (2010))
+        REAL(KIND(0d0)) :: qv   !< Liquid stiffness for temperature
+        REAL(KIND(0d0)) :: G    !< Shear Modulus
+        REAL(KIND(0d0)), DIMENSION(2)              :: Re    !< Reynolds number
+        REAL(KIND(0d0)), DIMENSION(num_fluids_max) :: We    !< Weber number
     END TYPE physical_parameters
     
     

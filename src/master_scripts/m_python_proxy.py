@@ -1,5 +1,4 @@
-#!/usr/bin/env python2
-
+#!/usr/bin/env python3
 
 ## @brief This module contains the parameters and functions necessary to
 ##              establish a workable proxy between Python scripting and the MFC.
@@ -14,6 +13,7 @@
 
 # Command used to query the path of the current working directory
 from os import getcwd
+import os
 
 # Command used to query the name of the current working directory
 from os.path import basename
@@ -25,6 +25,9 @@ from subprocess import PIPE, Popen
 from sys import exit
 
 import sys
+
+import pathlib
+
 # ==============================================================================
 
 
@@ -61,6 +64,7 @@ pre_process_dict =                                                             \
                     'z_b'                           : None,                    \
                     'cyl_coord'                     : None,                    \
                     'model_eqns'                    : None,                    \
+                    'relax_model'                   : None,                    \
                     'num_fluids'                    : None,                    \
                     'adv_alphan'                    : None,                    \
                     'mpp_lim'                       : None,                    \
@@ -814,6 +818,16 @@ pre_process_dict =                                                             \
                     'fluid_pp(8)%G'                 : None,                     \
                     'fluid_pp(9)%G'                 : None,                     \
                     'fluid_pp(10)%G'                : None,                     \
+                    'fluid_pp(1)%qv'                 : None,                    \
+                    'fluid_pp(2)%qv'                 : None,                    \
+                    'fluid_pp(3)%qv'                 : None,                    \
+                    'fluid_pp(4)%qv'                 : None,                    \
+                    'fluid_pp(5)%qv'                 : None,                    \
+                    'fluid_pp(6)%qv'                 : None,                    \
+                    'fluid_pp(7)%qv'                 : None,                    \
+                    'fluid_pp(8)%qv'                 : None,                    \
+                    'fluid_pp(9)%qv'                 : None,                    \
+                    'fluid_pp(10)%qv'                : None,                    \
                     'Ca'                            : None,                     \
                     'Web'                           : None,                     \
                     'Re_inv'                        : None,                     \
@@ -894,6 +908,7 @@ simulation_dict =                                                              \
                     't_step_stop'                   : None,                    \
                     't_step_save'                   : None,                    \
                     'model_eqns'                    : None,                    \
+                    'relax_model'                   : None,                    \
                     'num_fluids'                    : None,                    \
                     'adv_alphan'                    : None,                    \
                     'mpp_lim'                       : None,                    \
@@ -904,8 +919,11 @@ simulation_dict =                                                              \
                     'char_decomp'                   : None,                    \
                     'mapped_weno'                   : None,                    \
                     'mp_weno'                       : None,                    \
+                    'riemann_flat'                       : None,                    \
+                    'weno_flat'                       : None,                    \
                     'weno_avg'                      : None,                    \
                     'weno_Re_flux'                  : None,                    \
+                    'cu_mpi'                       : None,                    \
                     'riemann_solver'                : None,                    \
                     'wave_speeds'                   : None,                    \
                     'avg_state'                     : None,                    \
@@ -1141,76 +1159,106 @@ simulation_dict =                                                              \
                     'fluid_pp(10)%We(7)'            : None,                     \
                     'fluid_pp(10)%We(8)'            : None,                     \
                     'fluid_pp(10)%We(9)'            : None,                     \
-                    'fluid_pp(1)%mul0'              : None,                    \
+                    'fluid_pp(1)%mul0'              : None,                     \
                     'fluid_pp(1)%ss'                : None,                     \
                     'fluid_pp(1)%pv'                : None,                     \
                     'fluid_pp(1)%gamma_v'           : None,                     \
                     'fluid_pp(1)%M_v'               : None,                     \
                     'fluid_pp(1)%mu_v'              : None,                     \
                     'fluid_pp(1)%k_v'               : None,                     \
-                    'fluid_pp(2)%mul0'              : None,                    \
+                    'fluid_pp(2)%mul0'              : None,                     \
                     'fluid_pp(2)%ss'                : None,                     \
                     'fluid_pp(2)%pv'                : None,                     \
                     'fluid_pp(2)%gamma_v'           : None,                     \
                     'fluid_pp(2)%M_v'               : None,                     \
                     'fluid_pp(2)%mu_v'              : None,                     \
                     'fluid_pp(2)%k_v'               : None,                     \
-                    'fluid_pp(3)%mul0'              : None,                    \
+                    'fluid_pp(3)%mul0'              : None,                     \
                     'fluid_pp(3)%ss'                : None,                     \
                     'fluid_pp(3)%pv'                : None,                     \
                     'fluid_pp(3)%gamma_v'           : None,                     \
                     'fluid_pp(3)%M_v'               : None,                     \
                     'fluid_pp(3)%mu_v'              : None,                     \
                     'fluid_pp(3)%k_v'               : None,                     \
-                    'fluid_pp(4)%mul0'              : None,                    \
+                    'fluid_pp(4)%mul0'              : None,                     \
                     'fluid_pp(4)%ss'                : None,                     \
                     'fluid_pp(4)%pv'                : None,                     \
                     'fluid_pp(4)%gamma_v'           : None,                     \
                     'fluid_pp(4)%M_v'               : None,                     \
                     'fluid_pp(4)%mu_v'              : None,                     \
                     'fluid_pp(4)%k_v'               : None,                     \
-                    'fluid_pp(5)%mul0'              : None,                    \
+                    'fluid_pp(5)%mul0'              : None,                     \
                     'fluid_pp(5)%ss'                : None,                     \
                     'fluid_pp(5)%pv'                : None,                     \
                     'fluid_pp(5)%gamma_v'           : None,                     \
                     'fluid_pp(5)%M_v'               : None,                     \
                     'fluid_pp(5)%mu_v'              : None,                     \
                     'fluid_pp(5)%k_v'               : None,                     \
-                    'fluid_pp(6)%mul0'              : None,                    \
+                    'fluid_pp(6)%mul0'              : None,                     \
                     'fluid_pp(6)%ss'                : None,                     \
                     'fluid_pp(6)%pv'                : None,                     \
                     'fluid_pp(6)%gamma_v'           : None,                     \
                     'fluid_pp(6)%M_v'               : None,                     \
                     'fluid_pp(6)%mu_v'              : None,                     \
                     'fluid_pp(6)%k_v'               : None,                     \
-                    'fluid_pp(7)%mul0'              : None,                    \
+                    'fluid_pp(7)%mul0'              : None,                     \
                     'fluid_pp(7)%ss'                : None,                     \
                     'fluid_pp(7)%pv'                : None,                     \
                     'fluid_pp(7)%gamma_v'           : None,                     \
                     'fluid_pp(7)%M_v'               : None,                     \
                     'fluid_pp(7)%mu_v'              : None,                     \
                     'fluid_pp(7)%k_v'               : None,                     \
-                    'fluid_pp(8)%mul0'              : None,                    \
+                    'fluid_pp(8)%mul0'              : None,                     \
                     'fluid_pp(8)%ss'                : None,                     \
                     'fluid_pp(8)%pv'                : None,                     \
                     'fluid_pp(8)%gamma_v'           : None,                     \
                     'fluid_pp(8)%M_v'               : None,                     \
                     'fluid_pp(8)%mu_v'              : None,                     \
                     'fluid_pp(8)%k_v'               : None,                     \
-                    'fluid_pp(9)%mul0'              : None,                    \
+                    'fluid_pp(9)%mul0'              : None,                     \
                     'fluid_pp(9)%ss'                : None,                     \
                     'fluid_pp(9)%pv'                : None,                     \
                     'fluid_pp(9)%gamma_v'           : None,                     \
                     'fluid_pp(9)%M_v'               : None,                     \
                     'fluid_pp(9)%mu_v'              : None,                     \
                     'fluid_pp(9)%k_v'               : None,                     \
-                    'fluid_pp(10)%mul0'              : None,                    \
-                    'fluid_pp(10)%ss'                : None,                     \
-                    'fluid_pp(10)%pv'                : None,                     \
-                    'fluid_pp(10)%gamma_v'           : None,                     \
-                    'fluid_pp(10)%M_v'               : None,                     \
-                    'fluid_pp(10)%mu_v'              : None,                     \
+                    'fluid_pp(10)%mul0'             : None,                     \
+                    'fluid_pp(10)%ss'               : None,                     \
+                    'fluid_pp(10)%pv'               : None,                     \
+                    'fluid_pp(10)%gamma_v'          : None,                     \
+                    'fluid_pp(10)%M_v'              : None,                     \
+                    'fluid_pp(10)%mu_v'             : None,                     \
                     'fluid_pp(10)%k_v'              : None,                     \
+                    'fluid_pp(1)%cv'                : None,                     \
+                    'fluid_pp(2)%cv'                : None,                     \
+                    'fluid_pp(3)%cv'                : None,                     \
+                    'fluid_pp(4)%cv'                : None,                     \
+                    'fluid_pp(5)%cv'                : None,                     \
+                    'fluid_pp(6)%cv'                : None,                     \
+                    'fluid_pp(7)%cv'                : None,                     \
+                    'fluid_pp(8)%cv'                : None,                     \
+                    'fluid_pp(9)%cv'                : None,                     \
+                    'fluid_pp(10)%cv'               : None,                     \
+                    'fluid_pp(1)%qv'                : None,                     \
+                    'fluid_pp(2)%qv'                : None,                     \
+                    'fluid_pp(3)%qv'                : None,                     \
+                    'fluid_pp(4)%qv'                : None,                     \
+                    'fluid_pp(5)%qv'                : None,                     \
+                    'fluid_pp(6)%qv'                : None,                     \
+                    'fluid_pp(7)%qv'                : None,                     \
+                    'fluid_pp(8)%qv'                : None,                     \
+                    'fluid_pp(9)%qv'                : None,                     \
+                    'fluid_pp(10)%qv'               : None,                     \
+                    'fluid_pp(1)%qvp'               : None,                     \
+                    'fluid_pp(2)%qvp'               : None,                     \
+                    'fluid_pp(3)%qvp'               : None,                     \
+                    'fluid_pp(4)%qvp'               : None,                     \
+                    'fluid_pp(5)%qvp'               : None,                     \
+                    'fluid_pp(6)%qvp'               : None,                     \
+                    'fluid_pp(7)%qvp'               : None,                     \
+                    'fluid_pp(8)%qvp'               : None,                     \
+                    'fluid_pp(9)%qvp'               : None,                     \
+                    'fluid_pp(10)%qvp'              : None,                     \
                     'fluid_pp(1)%G'                 : None,                     \
                     'fluid_pp(2)%G'                 : None,                     \
                     'fluid_pp(3)%G'                 : None,                     \
@@ -1248,6 +1296,8 @@ simulation_dict =                                                              \
                     'Mono(1)%npulse'                : None,                     \
                     'Mono(1)%pulse'                 : None,                     \
                     'Mono(1)%support'               : None,                     \
+                    'Mono(1)%foc_length'            : None,                     \
+                    'Mono(1)%aperture'              : None,                     \
                     'Mono(2)%loc(1)'                : None,                     \
                     'Mono(2)%loc(2)'                : None,                     \
                     'Mono(2)%loc(3)'                : None,                     \
@@ -1257,6 +1307,8 @@ simulation_dict =                                                              \
                     'Mono(2)%npulse'                : None,                     \
                     'Mono(2)%pulse'                 : None,                     \
                     'Mono(2)%support'               : None,                     \
+                    'Mono(2)%foc_length'            : None,                     \
+                    'Mono(2)%aperture'              : None,                     \
                     'Mono(3)%loc(1)'                : None,                     \
                     'Mono(3)%loc(2)'                : None,                     \
                     'Mono(3)%loc(3)'                : None,                     \
@@ -1266,6 +1318,8 @@ simulation_dict =                                                              \
                     'Mono(3)%npulse'                : None,                     \
                     'Mono(3)%pulse'                 : None,                     \
                     'Mono(3)%support'               : None,                     \
+                    'Mono(3)%foc_length'            : None,                     \
+                    'Mono(3)%aperture'              : None,                     \
                     'Mono(4)%loc(1)'                : None,                     \
                     'Mono(4)%loc(2)'                : None,                     \
                     'Mono(4)%loc(3)'                : None,                     \
@@ -1279,6 +1333,14 @@ simulation_dict =                                                              \
                     'Mono(2)%delay'                 : None,                     \
                     'Mono(3)%delay'                 : None,                     \
                     'Mono(4)%delay'                 : None,                     \
+                    'Mono(1)%aperture'              : None,                     \
+                    'Mono(2)%aperture'              : None,                     \
+                    'Mono(3)%aperture'              : None,                     \
+                    'Mono(4)%aperture'              : None,                     \
+                    'Mono(1)%foc_length'            : None,                     \
+                    'Mono(2)%foc_length'            : None,                     \
+                    'Mono(3)%foc_length'            : None,                     \
+                    'Mono(4)%foc_length'            : None,                     \
                     'integral_wrt'                  : None,                     \
                     'num_integrals'                 : None,                     \
                     'integral(1)%xmin'              : None,                     \
@@ -1327,6 +1389,7 @@ post_process_dict =                                                            \
                     't_step_stop'                   : None,                    \
                     't_step_save'                   : None,                    \
                     'model_eqns'                    : None,                    \
+                    'relax_model'                   : None,                    \
                     'num_fluids'                    : None,                    \
                     'adv_alphan'                    : None,                    \
                     'mpp_lim'                       : None,                    \
@@ -1509,6 +1572,16 @@ post_process_dict =                                                            \
                     'fluid_pp(10)%M_v'              : None,                     \
                     'fluid_pp(10)%mu_v'             : None,                     \
                     'fluid_pp(10)%k_v'              : None,                     \
+                    'fluid_pp(1)%qv'                : None,                     \
+                    'fluid_pp(2)%qv'                : None,                     \
+                    'fluid_pp(3)%qv'                : None,                     \
+                    'fluid_pp(4)%qv'                : None,                     \
+                    'fluid_pp(5)%qv'                : None,                     \
+                    'fluid_pp(6)%qv'                : None,                     \
+                    'fluid_pp(7)%qv'                : None,                     \
+                    'fluid_pp(8)%qv'                : None,                     \
+                    'fluid_pp(9)%qv'                : None,                     \
+                    'fluid_pp(10)%qv'               : None,                     \
                     'fluid_pp(1)%G'                 : None,                     \
                     'fluid_pp(2)%G'                 : None,                     \
                     'fluid_pp(3)%G'                 : None,                     \
@@ -1566,44 +1639,43 @@ def f_execute_mfc_component_SHB(comp_name, case_dict, mfc_dir, engine, sub_name)
     # Enabling access to the MFC component and PBS dictionaries
     global pre_process_dict, simulation_dict, post_process_dict, pbs_dict
 
-
     # Checking the validity of the configuration of the engine
     if (engine != 'parallel') and (engine != 'serial'):
-        print '\n' + comp_name + '>> Unsupported engine configuration. ' \
-                                 'Exiting ...' + '\n'
-        exit(0)
+        print('\n' + comp_name + '>> Unsupported engine configuration. ' \
+                                 'Exiting ...' + '\n')
+        exit(1)
 
 
     # Checking whether the MFC component selected by the user exists
     if (comp_name != 'pre_process' ) and \
        (comp_name != 'simulation'  ) and \
        (comp_name != 'post_process'):
-        print '\n' + 'Unsupported choice of MFC component to execute. ' \
-                   + 'Exiting ...' + '\n'
-        exit(0)
+        print('\n' + 'Unsupported choice of MFC component to execute. ' \
+                   + 'Exiting ...' + '\n')
+        exit(1)
 
 
     # Checking the consistency of the case dictionary with respect to the MFC
     # component and PBS dictionaries
     for parameter in case_dict:
-        if ( pre_process_dict.has_key(parameter) == False) and \
-           (  simulation_dict.has_key(parameter) == False) and \
-           (post_process_dict.has_key(parameter) == False) and \
-           (         pbs_dict.has_key(parameter) == False):
-               print '\n' + comp_name + '>> Unsupported parameter choice ' \
-                          + parameter + '. Exiting ...' + '\n'
-               exit(0)
+        if ( (parameter in pre_process_dict) == False) and \
+           (  (parameter in simulation_dict) == False) and \
+           ((parameter in post_process_dict) == False) and \
+           (         (parameter in pbs_dict) == False):
+               print('\n' + comp_name + '>> Unsupported parameter choice ' \
+                          + parameter + '. Exiting ...' + '\n')
+               exit(1)
 
 
     # Updating the values in the PBS dictionary using the values provided by the
     # user in the case dictionary
     for parameter in case_dict:
-        if pbs_dict.has_key(parameter) == True:
+        if (parameter in pbs_dict) == True:
             pbs_dict[parameter] = case_dict[parameter]
 
 
     # Outputting the component's start-up message
-    print '\n' + comp_name + '>> Preparing ' + engine + ' job ...' + '\n'
+    print('\n' + comp_name + '>> Preparing ' + engine + ' job ...' + '\n')
 
 
     # Setting the directory location for the MFC component
@@ -1614,8 +1686,11 @@ def f_execute_mfc_component_SHB(comp_name, case_dict, mfc_dir, engine, sub_name)
         makefile = 'makefile'
 
     # Compiling the MFC component's code if necessary
-    cmd_status = Popen('make -C ' + comp_dir + ' all', shell=True, stdout=PIPE)
+    cmd_status = Popen('make -C ' + comp_dir + ' all', shell=True, stdout=PIPE, universal_newlines=True)
     output, errors = cmd_status.communicate()
+
+    if (cmd_status.returncode != 0):
+        exit(cmd_status.returncode)
 
 
     # Generating input file to be read in by the MFC component's executable
@@ -1626,34 +1701,47 @@ def f_execute_mfc_component_SHB(comp_name, case_dict, mfc_dir, engine, sub_name)
     # component, is run in the command-line, else, for a parallel configuration,
     # a bash script is generated and the job is submitted to a queue via PBS.
     if engine == 'serial':
-        print '\n' + comp_name + '>> Serial job in progress ...' + '\n'
-        #cmd_status = Popen('mpirun -n '+str(pbs_dict[ 'ppn' ])+' ./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE)
-        cmd_status = Popen('mpirun -n '+str(pbs_dict[ 'ppn' ])+ ' '+comp_dir+'/'+comp_name, shell=True, stdout=PIPE)
+        print('\n' + comp_name + '>> Serial job in progress ...' + '\n')
+        #cmd_status = Popen('mpirun -n '+str(pbs_dict[ 'ppn' ])+' ./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE, universal_newlines=True)
+
+        cmd_status = Popen(f'mpirun -n {str(pbs_dict["ppn"])} "{mfc_dir}/../build/___current___/build/bin/{comp_name}"', shell=True, universal_newlines=True)
         output, errors = cmd_status.communicate()
-        print '\n' + output
-        print comp_name + '>> Serial job completed!' + '\n'
-        cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE)
+        print('\n' + output)
+
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
+
+        print(comp_name + '>> Serial job completed!' + '\n')
+        cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE, universal_newlines=True)
         output, errors = cmd_status.communicate()
+
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
+
     #else if engine == 'interactive':
     #    print '\n' + comp_name + '>> Interactive job in progress ...' + '\n'
-    #    cmd_status = Popen('./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE)
+    #    cmd_status = Popen('./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE, universal_newlines=True)
     #    output, errors = cmd_status.communicate()
     #    print '\n' + output
     #    print comp_name + '>> Serial job completed!' + '\n'
-    #    cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE)
+    #    cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE, universal_newlines=True)
     #    output, errors = cmd_status.communicate()
     else:
         f_create_batch_file_SHB(comp_name, case_dict, mfc_dir, sub_name)
         # Submit job to queue (Hooke/Thomson/Darter)
         #cmd_status = Popen('qsub ' + comp_name + '.sh', shell=True, stdout=PIPE)
         # submit job to queue (Stampede)
-        cmd_status = Popen('sbatch ' + comp_name + '.sh', shell=True, stdout=PIPE)
+        cmd_status = Popen('sbatch ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
         output, errors = cmd_status.communicate()
-        print '\n' + output
-        print comp_name + '>> Parallel job submitted to queue!' + '\n'
+        print('\n' + output)
+
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
+
+        print(comp_name + '>> Parallel job submitted to queue!' + '\n')
 # END: def f_execute_mfc_component ---------------------------------------------
 
-def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
+def f_execute_mfc_component(comp_name: str, case_dict, mfc_dir, engine): # ----------
     # Description: The following function receives the name of the MFC component
     #              the user wishes to execute, the case dictionary, the location
     #              of the MFC folder and lastly, the configuration of the engine
@@ -1665,27 +1753,32 @@ def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
     #              component's executable by submitting the batch file to PBS,
     #              otherwise, it runs the executable serially, directly from the
     #              command-line.
-    
-    
+
+
     # Enabling access to the MFC component and PBS dictionaries
     global pre_process_dict, simulation_dict, post_process_dict, pbs_dict
-    
-    
+
+    mfc_dir=os.path.abspath(mfc_dir)
+
+    if "pre"  in comp_name.lower(): comp_name = "pre_process"
+    if "sim"  in comp_name.lower(): comp_name = "simulation"
+    if "post" in comp_name.lower(): comp_name = "post_process"
+
     # Checking the validity of the configuration of the engine
     if (engine != 'parallel') and (engine != 'serial'):
         print('\n' + comp_name + '>> Unsupported engine configuration. Exiting ...' + '\n')
-        exit(0)
-    
-    
+        exit(1)
+
+
     # Checking whether the MFC component selected by the user exists
     if (comp_name != 'pre_process' ) and \
        (comp_name != 'simulation'  ) and \
        (comp_name != 'post_process'):
         print( '\n' + 'Unsupported choice of MFC component to execute. ' \
                    + 'Exiting ...' + '\n')
-        exit(0)
-    
-    
+        exit(1)
+
+
     # Checking the consistency of the case dictionary with respect to the MFC
     # component and PBS dictionaries
     for parameter in case_dict:
@@ -1695,16 +1788,16 @@ def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
             (  parameter not in  pbs_dict ):
                print( '\n' + comp_name + '>> Unsupported parameter choice ' \
                           + parameter + '. Exiting ...' + '\n')
-               exit(0)
-    
-    
+               exit(1)
+
+
     # Updating the values in the PBS dictionary using the values provided by the
     # user in the case dictionary
     for parameter in case_dict:
         if (parameter in pbs_dict):
             pbs_dict[parameter] = case_dict[parameter]
-    
-    
+
+
     # Checking whether the engine configuration is compatible with the values of
     # the parameters located in the PBS dictionary
 #    if engine == 'serial':
@@ -1714,7 +1807,7 @@ def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
 #                                       + 'incompatible with value(s) of '   \
 #                                       + 'parameter(s) in PBS dictionary. ' \
 #                                       + 'Exiting ...' + '\n'
-#                exit(0)
+#                exit(1)
 #    else:
 #        for parameter in pbs_dict:
 #            if pbs_dict[parameter] is None:
@@ -1722,47 +1815,53 @@ def f_execute_mfc_component(comp_name, case_dict, mfc_dir, engine): # ----------
 #                                       + 'incompatible with value(s) of '    \
 #                                       + 'parameter(s) in PBS dictionary. '  \
 #                                       + 'Exiting ...' + '\n'
-#                exit(0)
-    
-    
+#                exit(1)
+
+
     # Outputting the component's start-up message
     print( '\n' + comp_name + '>> Preparing ' + engine + ' job ...' + '\n')
-    
-    
+
+
     # Setting the directory location for the MFC component
     comp_dir = mfc_dir + '/' + comp_name + '_code'
 
-    makefile = 'makefile'
-
     # Compiling the MFC component's code if necessary
-    cmd_status = Popen('make -C ' + comp_dir + ' all', shell=True, stdout=PIPE)
-    output, errors = cmd_status.communicate()
-    
-    
+    #cmd_status = Popen(f'./mfc.py --build {comp_dir} all', shell=True, stdout=PIPE, universal_newlines=True)
+    #output, errors = cmd_status.communicate()
+
+
     # Generating input file to be read in by the MFC component's executable
     f_create_input_file(comp_name, case_dict)
-    
-    
+
+
     # If the engine is configured serially, the job, i.e. the executable of the
     # component, is run in the command-line, else, for a parallel configuration,
     # a bash script is generated and the job is submitted to a queue via PBS.
     if engine == 'serial':
         print( '\n' + comp_name + '>> Serial job in progress ...' + '\n')
-        #cmd_status = Popen('./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE)
-        cmd_status = Popen('mpirun -n '+str(pbs_dict[ 'ppn' ])+ ' '+comp_dir+'/'+comp_name, shell=True )
+        #cmd_status = Popen('./'+comp_dir+'/'+comp_name, shell=True, stdout=PIPE, universal_newlines=True)
+
+        cmd_status = Popen(f'mpirun -n {str(pbs_dict["ppn"])} "{mfc_dir}/../build/___current___/build/bin/{comp_name}"', shell=True, universal_newlines=True)
         output, errors = cmd_status.communicate()
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
         #print '\n' + output
+
         print( comp_name + '>> Serial job completed!' + '\n')
-        #cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE)
+        #cmd_status = Popen('rm -f '+ comp_name +'.inp', shell=True, stdout=PIPE, universal_newlines=True)
         #output, errors = cmd_status.communicate()
     else:
         f_create_batch_file(comp_name, case_dict, mfc_dir)
         # Submit job to queue (qsub)
-        # cmd_status = Popen('qsub ' + comp_name + '.sh', shell=True, stdout=PIPE)
+        # cmd_status = Popen('qsub ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
         # submit job to queue (sbatch)
-        cmd_status = Popen('sbatch ' + comp_name + '.sh', shell=True, stdout=PIPE)
+        cmd_status = Popen('sbatch ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
         output, errors = cmd_status.communicate()
         print( '\n' + output)
+
+        if (cmd_status.returncode != 0):
+            exit(cmd_status.returncode)
+
         print( comp_name + '>> Parallel job submitted to queue!' + '\n')
 # END: def f_execute_mfc_component ---------------------------------------------
 
@@ -1772,12 +1871,12 @@ def f_create_input_file(comp_name, case_dict): # -------------------------------
     #              of the MFC component for which the file is to be created and
     #              the case dictionary from which the parameters will be used to
     #              populate the file.
-    
-    
+
+
     # Enabling access to the MFC component dictionaries
     global pre_process_dict, simulation_dict, post_process_dict
-    
-    
+
+
     # Updating the values in the relevant MFC component dictionary using the
     # values provided by the user in the case dictionary
     if comp_name == 'pre_process':
@@ -1795,32 +1894,32 @@ def f_create_input_file(comp_name, case_dict): # -------------------------------
             if parameter in post_process_dict:
                 post_process_dict[parameter] = case_dict[parameter]
         comp_dict = post_process_dict
-    
-    
+
+
     # Setting the location of the input file
     file_loc = comp_name + '.inp'
-    
-    
+
+
     # Opening and obtaining a handle for it
     file_id = open(file_loc, 'w')
-    
-    
+
+
     # Populating the file's header information
     file_id.write('&user_inputs\n')
-    
-    
+
+
     # Populating the body of the input file
     for parameter in comp_dict:
         if comp_dict[parameter] is not None:
             file_id.write(parameter + ' = ' + str(comp_dict[parameter]) + '\n')
-    
+
     # OTS: end statement for namelist [gfortran compatibility]
     file_id.write('&end\n')
-    
+
     # Populating the file's footer information
     file_id.write('/')
-    
-    
+
+
     # Closing the input file
     file_id.close()
 # END: def f_create_input_file -------------------------------------------------
@@ -1997,8 +2096,8 @@ def f_create_batch_file_SHB(comp_name, case_dict, mfc_dir,sub_name): # ---------
         #                               + '_code' + '/' + comp_name      + '\n' \
         # (Richardson)
         'mpirun '                                                               \
-                                       + mfc_dir + '/' + comp_name             \
-                                       + '_code' + '/' + comp_name      + '\n' \
+            + f"{mfc_dir}/../build/___current___/build/bin/{comp_name}"
+            + '\n' \
         # Stopping the timer for the job
         't_stop=$(date +%s)' + '\n' + 'echo'                            + '\n' \
         #'t_stop=$(date +"%T.%3N")' + '\n' + 'echo'                            + '\n' \
@@ -2024,8 +2123,11 @@ def f_create_batch_file_SHB(comp_name, case_dict, mfc_dir,sub_name): # ---------
 
 
     # Giving the batch file the permission to be executed
-    cmd_status = Popen('chmod +x ' + comp_name + '.sh', shell=True, stdout=PIPE)
+    cmd_status = Popen('chmod +x ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
     output, errors = cmd_status.communicate()
+
+    if (cmd_status.returncode != 0):
+        exit(cmd_status.returncode)
 
 
 def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
@@ -2033,32 +2135,34 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
     #              of the MFC component for which the file is to be created, the
     #              case dictionary from which the parameters will be used to
     #              populate the file, and the location of the MFC folder.
-    
-    
+
+
     # Enabling access to the PBS dictionary
     global pbs_dict
-    
-    
+
     # Setting the location of the batch file
     file_loc = comp_name + '.sh'
-    
-    
+
+
     # Opening and obtaining a handle for it
     file_id = open(file_loc, 'w')
-    
-    
+
+
     # Populating Batch File  ===================================================
     file_id.write(                                                             \
                                                                                \
         # Script interpreter
-        '#!/bin/sh'                                                     + '\n' \
+        '#!/bin/bash'                                                   + '\n' \
                                                                                \
         # Account to be charged for the job:
         # (PBS)
         # '#PBS -A xxx'                                          + '\n' \
         # (Slurm)
         # '#SBATCH -A xxx'                                       + '\n' \
-                                                                               \
+
+        # (Expanse)
+        '#SBATCH --account=cit129 '                                     + '\n' \
+                                                                                \
         # Name of the queue to which the job should be submitted:
         # (PBS)
         # '#PBS -q ' + str(pbs_dict['queue'])                             + '\n' \
@@ -2076,9 +2180,10 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         # '#PBS -l nodes=0' + str(pbs_dict['nodes'])                             \
         #        + ':ppn=' + str(pbs_dict[ 'ppn' ])                       + '\n' \
         # (Slurm)
-        '#SBATCH --nodes=' + str(pbs_dict['nodes'])                     + '\n' \
-        '#SBATCH --ntasks-per-node=' + str(pbs_dict['ppn'])             + '\n' \
-                                                                               \
+        #'#SBATCH --nodes=' + str(pbs_dict['nodes'])                     + '\n' \
+        #'#SBATCH --ntasks-per-node=' + str(pbs_dict['ppn'])             + '\n' \
+        '#SBATCH -n ' + str(pbs_dict['ppn'])                     + '\n' \
+                                                                              \
         # Maximum amount of time to commit to the execution of the job:
         # (PBS)
         # '#PBS -l walltime=' + str(pbs_dict['walltime'])                 + '\n' \
@@ -2095,15 +2200,16 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         # (Slurm)
         '#SBATCH -o ' + comp_name + '.o%j'                              + '\n' \
         '#SBATCH -e ' + comp_name + '.o%j'                              + '\n' \
+        '#SBATCH --export=ALL '                                         + '\n' \
                                                                                \
         # Notify by email when job begins (b), aborts (a), and/or ends (e):
         # (PBS)
         # '#PBS -m bae'                                                   + '\n' \
         # '#PBS -M ' + str(pbs_dict['mail_list'])                         + '\n' \
         # (Slurm)
-        '#SBATCH --mail-type=all'                                       + '\n' \
-        '#SBATCH --mail-user=' + str(pbs_dict['mail_list'])             + '\n' \
-                                                                               \
+#        '#SBATCH --mail-type=all'                                       + '\n' \
+#        '#SBATCH --mail-user=' + str(pbs_dict['mail_list'])             + '\n' \
+#                                                                               \
         #'sleep 30s'                                                     + '\n' \
         # Total number of processor(s) allocated for job execution
         # (PBS)
@@ -2145,9 +2251,9 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
          't_start=$(date +%s)'                                          + '\n' \
                                                                                \
         # Executing job:
-        'mpirun '                                                               \
-                                       + mfc_dir + '/' + comp_name             \
-                                       + '_code' + '/' + comp_name      + '\n' \
+        f'mpirun '                                                               \
+            + f"{mfc_dir}/../build/___current___/build/bin/{comp_name}"
+            + '\n' \
         # Stopping the timer for the job
         't_stop=$(date +%s)' + '\n' + 'echo'                            + '\n' \
                                                                                \
@@ -2165,15 +2271,19 @@ def f_create_batch_file(comp_name, case_dict, mfc_dir): # ----------------------
         # Removing the batch file
         'rm -f ' + comp_name + '.sh'                                           )
     # END: Populating Batch File ===============================================
-    
-    
+
+
     # Closing the batch file
     file_id.close()
-    
-    
+
+
     # Giving the batch file the permission to be executed
-    cmd_status = Popen('chmod +x ' + comp_name + '.sh', shell=True, stdout=PIPE)
+    cmd_status = Popen('chmod +x ' + comp_name + '.sh', shell=True, stdout=PIPE, universal_newlines=True)
     output, errors = cmd_status.communicate()
+
+    if (cmd_status.returncode != 0):
+        exit(cmd_status.returncode)
+
 # END: def f_create_batch_file -------------------------------------------------
 
 

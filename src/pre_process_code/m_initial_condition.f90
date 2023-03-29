@@ -1,9 +1,6 @@
 !>
 !! @file m_initial_condition.f90
 !! @brief Contains module m_initial_condition
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module provides a platform that is analagous to constructive
 !!              solid geometry techniques and in this way allows for the creation
@@ -459,6 +456,15 @@ MODULE m_initial_condition
                     eta *patch_icpp(patch_id)%alpha(i-E_idx) &
                     + (1d0 - eta)   *orig_prim_vf(i)
             END DO
+
+            ! Elastic Shear Stress
+            IF (hypoelasticity) THEN
+                DO i = 1, (stress_idx%end - stress_idx%beg) + 1
+                    q_prim_vf(i+stress_idx%beg - 1)%sf(j,k,l) = &
+                        (eta * patch_icpp(patch_id)%tau_e(i) &
+                         + (1d0-eta)*orig_prim_vf(i+stress_idx%beg -1))
+                END DO
+            END IF
 
             IF (mpp_lim .AND. bubbles) THEN
                 !adjust volume fractions, according to modeled gas void fraction
@@ -1719,9 +1725,9 @@ MODULE m_initial_condition
                     !IF (model_eqns == 4) THEN
                         !reassign density
                     !IF (num_fluids == 1) THEN
-                        q_prim_vf(1)%sf(i,0,0) = &
-                            (((q_prim_vf(E_idx)%sf(i,0,0) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
-                            rhoref*(1d0-q_prim_vf(alf_idx)%sf(i,0,0))
+                     !   q_prim_vf(1)%sf(i,0,0) = &
+                     !       (((q_prim_vf(E_idx)%sf(i,0,0) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
+                      !      rhoref*(1d0-q_prim_vf(alf_idx)%sf(i,0,0))
                     !END IF
                     !ELSE IF (model_eqns == 2) THEN
                         !can manually adjust density here
@@ -1863,12 +1869,12 @@ MODULE m_initial_condition
 
                         !what variables to alter
                         !x-y bump in pressure
-                        !q_prim_vf(E_idx)%sf(i,j,0) = q_prim_vf(E_idx)%sf(i,j,0) * &
-                        !    ( 1d0 + 0.2d0*dexp(-1d0*((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0)/(2.d0*0.005d0)) )
+                        q_prim_vf(E_idx)%sf(i,j,0) = q_prim_vf(E_idx)%sf(i,j,0) * &
+                            ( 1d0 + 0.2d0*dexp(-1d0*((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0)/(2.d0*0.005d0)) )
 
                         !x-bump
-                        q_prim_vf(E_idx)%sf(i,j,0) = q_prim_vf(E_idx)%sf(i,j,0) * &
-                            ( 1d0 + 0.2d0*dexp(-1d0*((x_cb(i)-x_centroid)**2.d0)/(2.d0*0.005d0)) )
+                     !   q_prim_vf(E_idx)%sf(i,j,0) = q_prim_vf(E_idx)%sf(i,j,0) * &
+                     !       ( 1d0 + 0.2d0*dexp(-1d0*((x_cb(i)-x_centroid)**2.d0)/(2.d0*0.005d0)) )
 
                         !bump in void fraction
                         !q_prim_vf(adv_idx%beg)%sf(i,j,0) = q_prim_vf(adv_idx%beg)%sf(i,j,0) * &
@@ -1879,9 +1885,9 @@ MODULE m_initial_condition
                         !    ( 1d0 + 0.2d0*exp(-1d0*((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0)/(2.d0*0.005d0)) )
 
                         !reassign density
-                        q_prim_vf(1)%sf(i,j,0) = &
-                            (((q_prim_vf(E_idx)%sf(i,j,0) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
-                            rhoref*(1d0-q_prim_vf(alf_idx)%sf(i,j,0))
+!                        q_prim_vf(1)%sf(i,j,0) = &
+!                            (((q_prim_vf(E_idx)%sf(i,j,0) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
+!                            rhoref*(1d0-q_prim_vf(alf_idx)%sf(i,j,0))
                        
                        ! ================================================================================
 
@@ -2002,24 +2008,24 @@ MODULE m_initial_condition
                         q_prim_vf(E_idx)%sf(i,j,k) = q_prim_vf(E_idx)%sf(i,j,k) * &
                             ( 1d0 + 0.2d0*exp(-1d0 * &
                             ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
-                            /(2.d0*0.005d0)) )
+                            /(2.d0*0.5d0)) )
 
                         !bump in void fraction
-                        q_prim_vf(adv_idx%beg)%sf(i,j,k) = q_prim_vf(adv_idx%beg)%sf(i,j,k) * &
-                            ( 1d0 + 0.2d0*exp(-1d0 * &
-                            ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
-                            /(2.d0*0.005d0)) )
+                     !   q_prim_vf(adv_idx%beg)%sf(i,j,k) = q_prim_vf(adv_idx%beg)%sf(i,j,k) * &
+                     !       ( 1d0 + 0.2d0*exp(-1d0 * &
+                     !       ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
+                     !       /(2.d0*0.005d0)) )
 
                         !bump in R(x)
-                        q_prim_vf(adv_idx%end+1)%sf(i,j,k) = q_prim_vf(adv_idx%end+1)%sf(i,j,k) * &
-                            ( 1d0 + 0.2d0*exp(-1d0 * &
-                            ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
-                            /(2.d0*0.005d0)) )
+                      !  q_prim_vf(adv_idx%end+1)%sf(i,j,k) = q_prim_vf(adv_idx%end+1)%sf(i,j,k) * &
+                      !      ( 1d0 + 0.2d0*exp(-1d0 * &
+                      !      ((x_cb(i)-x_centroid)**2.d0 + (y_cb(j)-y_centroid)**2.d0 + (z_cb(k)-z_centroid)**2.d0) &
+                      !      /(2.d0*0.005d0)) )
 
                         !reassign density
-                        q_prim_vf(1)%sf(i,j,k) = &
-                            (((q_prim_vf(E_idx)%sf(i,j,k) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
-                            rhoref*(1d0-q_prim_vf(E_idx+1)%sf(i,j,k))
+                       ! q_prim_vf(1)%sf(i,j,k) = &
+                       !     (((q_prim_vf(E_idx)%sf(i,j,k) + pi_inf)/(pref + pi_inf))**(1d0/lit_gamma)) * &
+                       !     rhoref*(1d0-q_prim_vf(E_idx+1)%sf(i,j,k))
 
                         ! ================================================================================
 

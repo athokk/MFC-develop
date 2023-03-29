@@ -1,9 +1,6 @@
 !>
 !! @file m_data_output.f90
 !! @brief Contains module m_data_output
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief The primary purpose of this module is to output the grid and the
 !!              conservative variables data at the chosen time-step interval. In
@@ -282,7 +279,8 @@ MODULE m_data_output
                                      '=== z-vel ' // &
                                      '=== x-accel ' // &
                                      '=== y-accel ' // &
-                                     '=== z-accel ==='
+                                     '=== z-accel ==='// &
+                                     '=== Total Volume ==='
                         END IF
                     END IF
                 END IF
@@ -379,7 +377,6 @@ MODULE m_data_output
             END DO
             end IF
 
-
         END SUBROUTINE s_open_probe_files ! ------------------------------------
 
 
@@ -461,8 +458,8 @@ MODULE m_data_output
                      ELSEIF(model_eqns == 3) THEN
                         c = 0d0
                         DO i = 1, num_fluids
-                            c = c + q_prim_vf(i+adv_idx%beg-1)%sf(j,k,l) * (1d0/fluid_pp(i)%gamma+1d0) * &
-                                (pres + fluid_pp(i)%pi_inf/(fluid_pp(i)%gamma+1d0))
+                            c = c + q_prim_vf(i+adv_idx%beg-1)%sf(j,k,l)*(1.d0/fluid_pp(i)%gamma+1.d0)*&
+                                (pres + fluid_pp(i)%pi_inf/(fluid_pp(i)%gamma+1.d0))/rho
                         END DO
                      ELSE
                          DO i = 1, crv_size
@@ -471,10 +468,10 @@ MODULE m_data_output
                          c = (((gamma + 1d0)*pres + pi_inf)/(gamma*rho))
                      END IF
 
-                     IF (mixture_err .AND. c < 0d0) THEN
+                     IF ( mixture_err .AND. (c .LE. 0.d0) ) THEN
                          c = sgm_eps
                      ELSE
-                         c = SQRT(c)
+                         c = DSQRT(c)
                      END IF
 
                      IF (grid_geometry == 3) THEN
@@ -673,7 +670,9 @@ MODULE m_data_output
                 IF (icfl_max_glb /= icfl_max_glb) THEN
                     PRINT '(A)', 'ICFL is NaN. Exiting ...'
                     ! print*, (dt/dx(:)),ABS(vel(1)),c
-
+                    CALL s_mpi_abort()
+                ELSEIF (icfl_max_glb < 0.d0) THEN 
+                    PRINT '(A)', 'ICFL is negative. Exiting ...'
                     CALL s_mpi_abort()
                 ELSEIF (icfl_max_glb > 1d0) THEN
                     PRINT '(A)', 'ICFL is greater than 1.0. Exiting ...'
@@ -719,6 +718,7 @@ MODULE m_data_output
             REAL(KIND(0d0)) :: rho                          !< Temporary density
             REAL(KIND(0d0)), DIMENSION(2)                   :: Re !< Temporary Reynolds number
             REAL(KIND(0d0)), ALLOCATABLE, DIMENSION(:,:)    :: We !< Temporary Weber number
+            REAL(KIND(0d0)) :: E_e                          !< Temporary elastic energy contribution
 
             ! Creating or overwriting the time-step root directory
             WRITE(t_step_dir,'(A,I0,A,I0)') TRIM(case_dir) // '/p_all'
@@ -785,7 +785,7 @@ MODULE m_data_output
             pi_inf = fluid_pp(1)%pi_inf
 
             IF (precision==1) THEN
-                FMT="(2F30.7)"
+                FMT="(2F30.3)"
             ELSE
                 FMT="(2F40.14)"
             END IF
@@ -801,13 +801,14 @@ MODULE m_data_output
             !1D
             IF (n==0 .AND. p==0) THEN
 
-                IF (model_eqns==2) THEN
-                    DO i = 1, sys_size
+                IF (model_eqns==2 .OR. model_eqns==3) THEN
+                    DO i = 1, sys_size+1
         WRITE(file_path,'(A,I0,A,I2.2,A,I6.6,A)') TRIM(t_step_dir) // '/prim.', i, '.', proc_rank, '.', t_step,'.dat'
 
                         OPEN(2,FILE= TRIM(file_path) )
                             DO j=0,m
-                                CALL s_convert_to_mixture_variables( q_cons_vf, rho, gamma, pi_inf, Re, We, j,0,0)
+                                CALL s_convert_to_mixture_variables( q_cons_vf, rho, gamma, pi_inf, Re, We, j,0,0, &
+                                                                                                    G,fluid_pp(:)%G )
                                 lit_gamma = 1d0/gamma + 1d0
                                 
                                 IF ( ((i.ge.cont_idx%beg) .AND. (i.le.cont_idx%end))    &
@@ -828,7 +829,30 @@ MODULE m_data_output
                                             (rhoref*(1.d0-q_cons_vf(4)%sf(j,0,0)))  & 
                                             ) ** lit_gamma )                        &
                                             - pi_inf
-                                    ELSE IF (model_eqns == 2 .AND. (bubbles .NEQV. .TRUE.)) THEN
+                                    ELSE IF (hypoelasticity) THEN
+                                        ! elastic contribution to energy
+                                        E_e = 0d0
+                                        DO k = stress_idx%beg, stress_idx%end
+                                            IF (G > 1000) THEN
+                                            E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j,0,0)/rho)**2d0) &
+                                                        /(4d0*G)
+                                            ! Additional terms in 2D and 3D
+                                            IF ((k == stress_idx%beg + 1) .OR. &
+                                                  (k == stress_idx%beg + 3) .OR. &
+                                                    (k == stress_idx%beg + 4)) THEN
+                                                E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j,0,0)/rho)**2d0) &
+                                                            /(4d0*G)
+                                            END IF
+                                            END IF
+                                        END DO
+                                        
+                                        WRITE(2,FMT) x_cb(j), &
+                                            (                                       & 
+                                            q_cons_vf(E_idx)%sf(j,0,0)  -            &
+                                            0.5d0*(q_cons_vf(mom_idx%beg)%sf(j,0,0)**2.d0)/rho - &
+                                            pi_inf - E_e &
+                                            ) / gamma
+                                    ELSE IF ((model_eqns == 2.OR. model_eqns==3) .AND. (bubbles .NEQV. .TRUE.)) THEN
                                         !Stiffened gas pressure from energy
                                         WRITE(2,FMT) x_cb(j), &
                                             (                                       & 
@@ -853,6 +877,9 @@ MODULE m_data_output
                                     CALL s_comp_n_from_cons( q_cons_vf(alf_idx)%sf(j,0,0), nRtmp, nbub) 
                                     
                                     WRITE(2,FMT) x_cb(j),q_cons_vf(i)%sf(j,0,0)/nbub
+                                END IF
+                                IF (i == sys_size+1) THEN
+                                    WRITE(2,FMT) x_cb(j), rho
                                 END IF
                             END DO
                         CLOSE(2)
@@ -1045,7 +1072,8 @@ MODULE m_data_output
                                 MPI_DOUBLE_PRECISION,status,ierr)
                 END DO
             ELSE
-                DO i = 1, adv_idx%end
+!                DO i = 1, adv_idx%end
+                DO i = 1, sys_size
                     var_MOK = INT(i, MPI_OFFSET_KIND)
 
                     ! Initial displacement to skip at beginning of file
@@ -1070,7 +1098,7 @@ MODULE m_data_output
         SUBROUTINE s_write_com_files(t_step,q_com,moments) ! -------------------
 
             INTEGER, INTENT(IN) :: t_step
-            REAL(KIND(0d0)), DIMENSION(num_fluids,10), INTENT(IN) :: q_com
+            REAL(KIND(0d0)), DIMENSION(num_fluids,11), INTENT(IN) :: q_com
             REAL(KIND(0d0)), DIMENSION(num_fluids,2,5), INTENT(IN) :: moments
 
 
@@ -1088,13 +1116,13 @@ MODULE m_data_output
                 DO i = 1, num_fluids ! Loop through fluids
                     IF (com_wrt(i)) THEN ! Writing out CoM data
                         IF (proc_rank == 0) THEN
-                            WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8)') &
+                            WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,F24.8)') &
                                 nondim_time, &
                                 q_com(i,1), &
                                 q_com(i,2), &
                                 q_com(i,5), &
-                                q_com(i,8)
-                                
+                                q_com(i,8), &
+                                q_com(i,11)
 
                         END IF
                     END IF
@@ -1105,18 +1133,7 @@ MODULE m_data_output
                         IF (proc_rank == 0) THEN
                             IF (moment_order(1) == dflt_int) THEN
                                 WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8)') &
-                                    nondim_time, &
-                                    q_com(i,1), &
-                                    q_com(i,2), &
-                                    q_com(i,3), &
-                                    q_com(i,5), &
-                                    q_com(i,6), &
-                                    q_com(i,8), &
-                                    q_com(i,9)
-                            ELSEIF (moment_order(2) == dflt_int) THEN
-                                WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8,E24.8)') &
+                                             'F24.8,F24.8,F24.8,F24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
                                     q_com(i,2), &
@@ -1125,10 +1142,23 @@ MODULE m_data_output
                                     q_com(i,6), &
                                     q_com(i,8), &
                                     q_com(i,9), &
+                                    q_com(i,11)
+                            ELSEIF (moment_order(2) == dflt_int) THEN
+                                WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
+                                             'F24.8,F24.8,F24.8,F24.8,E24.8)') &
+                                    nondim_time, &
+                                    q_com(i,1), &
+                                    q_com(i,2), &
+                                    q_com(i,3), &
+                                    q_com(i,5), &
+                                    q_com(i,6), &
+                                    q_com(i,8), &
+                                    q_com(i,9), &
+                                    q_com(i,11), &
                                     moments(i,1,1)
                             ELSEIF (moment_order(3) == dflt_int) THEN
                                 WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8,E24.8,' // &
+                                             'F24.8,F24.8,F24.8,F24.8,E24.8,' // &
                                              'E24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
@@ -1138,11 +1168,12 @@ MODULE m_data_output
                                     q_com(i,6), &
                                     q_com(i,8), &
                                     q_com(i,9), &
+                                    q_com(i,11), &
                                     moments(i,1,1), &
                                     moments(i,1,2)
                             ELSEIF (moment_order(4) == dflt_int) THEN
                                 WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8,E24.8,' // &
+                                             'F24.8,F24.8,F24.8,F24.8,E24.8,' // &
                                              'E24.8,E24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
@@ -1152,12 +1183,13 @@ MODULE m_data_output
                                     q_com(i,6), &
                                     q_com(i,8), &
                                     q_com(i,9), &
+                                    q_com(i,11), &
                                     moments(i,1,1), &
                                     moments(i,1,2), &
                                     moments(i,1,3)
                             ELSEIF (moment_order(5) == dflt_int) THEN
                                 WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8,E24.8,' // &
+                                             'F24.8,F24.8,F24.8,F24.8,E24.8,' // &
                                              'E24.8,E24.8,E24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
@@ -1167,13 +1199,14 @@ MODULE m_data_output
                                     q_com(i,6), &
                                     q_com(i,8), &
                                     q_com(i,9), &
+                                    q_com(i,11), &
                                     moments(i,1,1), &
                                     moments(i,1,2), &
                                     moments(i,1,3), &
                                     moments(i,1,4)
                             ELSE
                                 WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8,E24.8,' // &
+                                             'F24.8,F24.8,F24.8,F24.8,E24.8,' // &
                                              'E24.8,E24.8,E24.8,E24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
@@ -1183,6 +1216,7 @@ MODULE m_data_output
                                     q_com(i,6), &
                                     q_com(i,8), &
                                     q_com(i,9), &
+                                    q_com(i,11), &
                                     moments(i,1,1), &
                                     moments(i,1,2), &
                                     moments(i,1,3), &
@@ -1199,22 +1233,7 @@ MODULE m_data_output
                             IF (moment_order(1) == dflt_int) THEN
                                 WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
                                              'F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8)') &
-                                    nondim_time, &
-                                    q_com(i,1), &
-                                    q_com(i,2), &
-                                    q_com(i,3), &
-                                    q_com(i,4), &
-                                    q_com(i,5), &
-                                    q_com(i,6), &
-                                    q_com(i,7), &
-                                    q_com(i,8), &
-                                    q_com(i,9), &
-                                    q_com(i,10)
-                            ELSEIF (moment_order(2) == dflt_int) THEN
-                                WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8,F24.8)') &
+                                             'F24.8,F24.8,F24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
                                     q_com(i,2), &
@@ -1226,13 +1245,30 @@ MODULE m_data_output
                                     q_com(i,8), &
                                     q_com(i,9), &
                                     q_com(i,10), &
+                                    q_com(i,11)
+                            ELSEIF (moment_order(2) == dflt_int) THEN
+                                WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
+                                             'F24.8,F24.8,F24.8,F24.8,' // &
+                                             'F24.8,F24.8,F24.8,F24.8,F24.8)') &
+                                    nondim_time, &
+                                    q_com(i,1), &
+                                    q_com(i,2), &
+                                    q_com(i,3), &
+                                    q_com(i,4), &
+                                    q_com(i,5), &
+                                    q_com(i,6), &
+                                    q_com(i,7), &
+                                    q_com(i,8), &
+                                    q_com(i,9), &
+                                    q_com(i,10), &
+                                    q_com(i,11), &
                                     moments(i,1,1), &
                                     moments(i,2,1)
                             ELSEIF (moment_order(3) == dflt_int) THEN
                                 WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
                                              'F24.8,F24.8,F24.8,F24.8,' // &
                                              'F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8)') &
+                                             'F24.8,F24.8,F24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
                                     q_com(i,2), &
@@ -1244,6 +1280,7 @@ MODULE m_data_output
                                     q_com(i,8), &
                                     q_com(i,9), &
                                     q_com(i,10), &
+                                    q_com(i,11), &
                                     moments(i,1,1), &
                                     moments(i,1,2), &
                                     moments(i,2,1), &
@@ -1252,7 +1289,7 @@ MODULE m_data_output
                                 WRITE(i+10, '(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
                                              'F24.8,F24.8,F24.8,F24.8,' // &
                                              'F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8,F24.8)') &
+                                             'F24.8,F24.8,F24.8,F24.8,F24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
                                     q_com(i,2), &
@@ -1264,6 +1301,7 @@ MODULE m_data_output
                                     q_com(i,8), &
                                     q_com(i,9), &
                                     q_com(i,10), &
+                                    q_com(i,11), &
                                     moments(i,1,1), &
                                     moments(i,1,2), &
                                     moments(i,1,3), &
@@ -1275,7 +1313,7 @@ MODULE m_data_output
                                              'F24.8,F24.8,F24.8,F24.8,' // &
                                              'F24.8,F24.8,F24.8,F24.8,' // &
                                              'F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8)') &
+                                             'F24.8,F24.8,F24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
                                     q_com(i,2), &
@@ -1287,6 +1325,7 @@ MODULE m_data_output
                                     q_com(i,8), &
                                     q_com(i,9), &
                                     q_com(i,10), &
+                                    q_com(i,11), &
                                     moments(i,1,1), &
                                     moments(i,1,2), &
                                     moments(i,1,3), &
@@ -1300,7 +1339,7 @@ MODULE m_data_output
                                              'F24.8,F24.8,F24.8,F24.8,' // &
                                              'F24.8,F24.8,F24.8,F24.8,' // &
                                              'F24.8,F24.8,F24.8,F24.8,' // &
-                                             'F24.8,F24.8,F24.8,F24.8)') &
+                                             'F24.8,F24.8,F24.8,F24.8,F24.8)') &
                                     nondim_time, &
                                     q_com(i,1), &
                                     q_com(i,2), &
@@ -1312,6 +1351,7 @@ MODULE m_data_output
                                     q_com(i,8), &
                                     q_com(i,9), &
                                     q_com(i,10), &
+                                    q_com(i,11), &
                                     moments(i,1,1), &
                                     moments(i,1,2), &
                                     moments(i,1,3), &
@@ -1818,6 +1858,8 @@ MODULE m_data_output
             REAL(KIND(0d0))                                   :: max_pres
             REAL(KIND(0d0)), DIMENSION(2)             :: Re
             REAL(KIND(0d0)), ALLOCATABLE, DIMENSION(:,:)      :: We
+            REAL(KIND(0d0)), DIMENSION(num_fluids)            :: alpha_rho
+            REAL(KIND(0d0))                                   :: E_e
             
             INTEGER :: i,j,k,l,s !< Generic loop iterator
 
@@ -1883,7 +1925,7 @@ MODULE m_data_output
                         ! Computing/Sharing necessary state variables
                         CALL s_convert_to_mixture_variables( q_cons_vf, rho, &
                                              gamma, pi_inf, &
-                                             Re, We, j-2,k,l)
+                                             Re, We, j-2,k,l,G,fluid_pp(:)%G)
                         DO s = 1, num_dims
                             vel(s) = q_cons_vf(cont_idx%end+s)%sf(j-2,k,l)/rho
                         END DO
@@ -1897,6 +1939,29 @@ MODULE m_data_output
                                 (rhoref*(1.d0-q_cons_vf(4)%sf(j-2,k,l)))  & 
                                 ) ** lit_gamma )                        &
                                 - pi_inf
+                        ELSE IF (hypoelasticity) THEN
+                            ! calculate elastic contribution to Energy
+                            E_e = 0d0
+                            DO s = stress_idx%beg, stress_idx%end
+                                IF (G > 0) THEN
+                                E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j-2,k,l)/rho)**2d0) &
+                                            /(4d0*G)
+                                ! Additional terms in 2D and 3D
+                                 IF ((s == stress_idx%beg + 1) .OR. &
+                                      (s == stress_idx%beg + 3) .OR. &
+                                       (s == stress_idx%beg + 4)) THEN
+                                     E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j-2,k,l)/rho)**2d0) &
+                                                /(4d0*G)
+                                 END IF
+                                END IF
+                            END DO
+                            
+                            pres = (                                      &
+                               q_cons_vf(E_idx)%sf(j-2,k,l)  -            &
+                               0.5d0*(q_cons_vf(mom_idx%beg)%sf(j-2,k,l)**2.d0)/rho - &
+                               pi_inf - E_e &
+                               ) / gamma 
+
                         ELSE IF (model_eqns == 2 .AND. (bubbles .NEQV. .TRUE.)) THEN
                             !Stiffened gas pressure from energy
                             pres = (                                       & 
@@ -1992,7 +2057,7 @@ MODULE m_data_output
                             ! Computing/Sharing necessary state variables
                             CALL s_convert_to_mixture_variables( q_cons_vf, rho, &
                                                  gamma, pi_inf, &
-                                                 Re, We, j-2,k-2,l)
+                                                 Re, We, j-2,k-2,l,G,fluid_pp(:)%G)
                             DO s = 1, num_dims
                                 vel(s) = q_cons_vf(cont_idx%end+s)%sf(j-2,k-2,l)/rho
                             END DO
@@ -2006,7 +2071,30 @@ MODULE m_data_output
                                     (rhoref*(1.d0-q_cons_vf(4)%sf(j-2,k-2,l)))  & 
                                     ) ** lit_gamma )                        &
                                     - pi_inf
-                            ELSE IF (model_eqns == 2 .AND. (bubbles .NEQV. .TRUE.)) THEN
+                            ELSE IF (hypoelasticity) THEN
+                            ! calculate elastic contribution to Energy
+                            E_e = 0d0
+                            DO s = stress_idx%beg, stress_idx%end
+                                IF (G > 0) THEN
+                                E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j-2,k-2,l)/rho)**2d0) &
+                                            /(4d0*G)
+                                ! Additional terms in 2D and 3D
+                                 IF ((s == stress_idx%beg + 1) .OR. &
+                                      (s == stress_idx%beg + 3) .OR. &
+                                       (s == stress_idx%beg + 4)) THEN
+                                     E_e = E_e + ((q_cons_vf(stress_idx%beg)%sf(j-2,k-2,l)/rho)**2d0) &
+                                                /(4d0*G)
+                                 END IF
+                                END IF
+                            END DO
+                            
+                            pres = (                                      &
+                               q_cons_vf(E_idx)%sf(j-2,k-2,l)  -            &
+                               0.5d0*(q_cons_vf(mom_idx%beg)%sf(j-2,k-2,l)**2.d0)/rho - &
+                               pi_inf - E_e &
+                               ) / gamma 
+
+                            ELSE IF ((model_eqns == 2 .OR. model_eqns == 3) .AND. (bubbles .NEQV. .TRUE.)) THEN
                                 !Stiffened gas pressure from energy
                                 pres = (                                       & 
                                     q_cons_vf(E_idx)%sf(j-2,k-2,l)  -            &
@@ -2014,6 +2102,11 @@ MODULE m_data_output
                                     q_cons_vf(3)%sf(j-2,k-2,l)**2.d0)/q_cons_vf(1)%sf(j-2,k-2,l)) - &
                                     pi_inf &
                                     ) / gamma
+                                DO s = 1, num_fluids
+                                    alpha(s) = q_cons_vf(E_idx+s)%sf(j-2,k-2,l)
+                                    alpha_rho(s) = q_cons_vf(s)%sf(j-2,k-2,l)
+                                END DO
+
                             ELSE
                                 !Stiffened gas pressure from energy with bubbles
                                 pres = (                                       & 
@@ -2056,7 +2149,6 @@ MODULE m_data_output
                             ELSE
                                 c = SQRT(c)
                             END IF
-
                             accel = accel_mag(j-2,k-2,l)
                         END IF
                     END IF
@@ -2086,7 +2178,7 @@ MODULE m_data_output
                                 ! Computing/Sharing necessary state variables
                                 CALL s_convert_to_mixture_variables( q_cons_vf, rho, &
                                                      gamma, pi_inf, &
-                                                     Re, We, j-2,k-2,l-2)
+                                                     Re, We, j-2,k-2,l-2,G,fluid_pp(:)%G)
                                 DO s = 1, num_dims
                                     vel(s) = q_cons_vf(cont_idx%end+s)%sf(j-2,k-2,l-2)/rho
                                 END DO
@@ -2265,11 +2357,15 @@ MODULE m_data_output
                                 R(1), &
                                 Rdot(1)
                         ELSE
-                            WRITE(i+30,'(6X,F12.6,F24.8,F24.8,F24.8)') &
+                            WRITE(i+30,'(6X,F12.6,F24.8,F24.8,F24.8,F24.8,F24.8,F24.8,F24.8)') &
                                 nondim_time, &
                                 rho, &
                                 vel(1), &
-                                pres
+                                pres, & 
+                                alpha_rho(1)/rho, &
+                                alpha_rho(2)/rho, & 
+                                alpha_rho(3)/rho, & 
+                                alpha(2)
                         END IF
                     ELSE
                         WRITE(i+30,'(6X,F12.6,F24.8,F24.8,F24.8,F24.8,' // &
@@ -2546,7 +2642,7 @@ MODULE m_data_output
             ! going to be written to the CoM data files
             IF (ANY(com_wrt)) THEN
                 ! num_fluids, mass, x-loc, y-loc, z-loc, x-vel, y-vel, z-vel, x-acc, y-acc, z-acc
-                ALLOCATE(q_com(num_fluids,10))
+                ALLOCATE(q_com(num_fluids,11))
                 ! num_fluids, 2 lateral directions, 5 higher moment orders
                 ALLOCATE(moments(num_fluids,2,5))
             END IF

@@ -1,9 +1,6 @@
 !>
 !! @file m_global_parameters.f90
 !! @brief Contains module m_global_parameters
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module contains all of the parameters characterizing the
 !!              computational domain, simulation algorithm, initial condition
@@ -15,8 +12,6 @@ MODULE m_global_parameters
     USE mpi                     ! Message passing interface (MPI) module
     
     USE m_derived_types         ! Definitions of the derived types
-
-    USE m_eigen                 ! Eigenvalues
     ! ==========================================================================
     
     
@@ -91,6 +86,7 @@ MODULE m_global_parameters
     
     ! Simulation Algorithm Parameters ==========================================
     INTEGER :: model_eqns      !< Multicomponent flow model
+    INTEGER :: relax_model     !< Relax model
     INTEGER :: num_fluids      !< Number of different fluids present in the flow
     LOGICAL :: adv_alphan      !< Advection of the last volume fraction
     LOGICAL :: mpp_lim         !< Alpha limiter
@@ -247,6 +243,7 @@ MODULE m_global_parameters
 
             ! Simulation algorithm parameters
             model_eqns = dflt_int
+            relax_model= dflt_int
             num_fluids = dflt_int
             adv_alphan = .FALSE.
             weno_order = dflt_int
@@ -351,6 +348,7 @@ MODULE m_global_parameters
                 fluid_pp(i)%mu_v    = dflt_real
                 fluid_pp(i)%k_v     = dflt_real
                 fluid_pp(i)%G       = dflt_real
+                fluid_pp(i)%qv      = dflt_real
             END DO
             
             
@@ -921,54 +919,9 @@ MODULE m_global_parameters
 
 
         SUBROUTINE s_wheeler
-            
-            REAL(KIND(0d0)), DIMENSION(2*nb,2*nb) :: sig
-            REAL(KIND(0d0)), DIMENSION(nb,nb) :: Ja
-            REAL(KIND(0d0)), DIMENSION(2*nb) :: momRo
-            REAL(KIND(0d0)), DIMENSION(nb) :: evec, eigs, a, b
-            REAL(KIND(0d0)) :: muRo
-            INTEGER :: i,j
 
-            muRo = 1d0
-
-            a = 0d0; b = 0d0
-            sig = 0d0; Ja = 0d0
-
-            DO i = 0,2*nb-1
-                momRo(i+1) = DEXP( i*LOG(muRo) + 0.5d0*(i*poly_sigma)**2d0 )
-            END DO
-
-            DO i = 0,2*nb-1
-                sig(2,i+1) = momRo(i+1)
-            END DO
-
-            a(1) = momRo(2)/momRo(1)
-            DO i = 1,nb-1
-                DO j = i,2*nb-i-1
-                    sig(i+2,j+1) = sig(i+1,j+2) - a(i)*sig(i+1,j+1) - b(i)*sig(i,j+1)
-                    a(i+1) = -1d0*(sig(i+1,i+1)/sig(i+1,i)) + sig(i+2,i+2)/sig(i+2,i+1)
-                    b(i+1) = sig(i+2,i+1)/sig(i+1,i)
-                END DO
-            END DO
-           
-            DO i = 1,nb
-                Ja(i,i) = a(i)
-            END DO
-            DO i = 1,nb-1
-                Ja(i,i+1) = -DSQRT(ABS(b(i+1)))
-                Ja(i+1,i) = -DSQRT(ABS(b(i+1)))
-            END DO
-
-            CALL s_eigs(Ja,eigs,evec,nb)
-
-            weight(1:nb) = (evec(nb:1:-1)**2d0)*momRo(1)
-            R0(1:nb) = eigs(nb:1:-1)
-
-            IF (MINVAL(R0) < 0d0) THEN
-                PRINT*, 'Minimum R0 is negative. nb might be too large for Wheeler'
-                PRINT*, 'Aborting...'
-                STOP
-            END IF
+            print*, 's_wheeler no longer supported.'
+            stop
 
         END SUBROUTINE s_wheeler
 

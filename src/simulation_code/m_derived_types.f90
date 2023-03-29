@@ -1,9 +1,6 @@
 !>
 !! @file m_derived_types.f90
 !! @brief Contains module m_derived_types
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module features the definitions of all the custom-defined
 !!        derived types that are utilized throughout the simulation code.
@@ -12,6 +9,8 @@ MODULE m_derived_types
     
     IMPLICIT NONE
     
+    PUBLIC :: probe_parameters
+
     INTEGER, PARAMETER :: num_fluids_max = 10 !<
     !! Maximum number of fluids in the simulation
     
@@ -57,6 +56,9 @@ MODULE m_derived_types
     TYPE physical_parameters
         REAL(KIND(0d0))                            :: gamma  !< Sp. heat ratio
         REAL(KIND(0d0))                            :: pi_inf !< Liquid stiffness
+        REAL(KIND(0d0))                            :: cv     !< heat capacity
+        REAL(KIND(0d0))                            :: qv     !< reference energy per unit mass for SGEOS, q (see Le Metayer (2004))
+        REAL(KIND(0d0))                            :: qvp    !< reference entropy per unit mass for SGEOS, q' (see Le Metayer (2004))
         REAL(KIND(0d0)), DIMENSION(2)              :: Re    !< Reynolds number
         REAL(KIND(0d0)), DIMENSION(num_fluids_max) :: We    !< Weber number
         REAL(KIND(0d0)) :: mul0 !< Bubble viscosity
@@ -93,6 +95,8 @@ MODULE m_derived_types
         REAL(KIND(0d0)), DIMENSION(3) :: loc !< Physical location of acoustic source
         REAL(KIND(0d0)) :: mag !< Magnitude
         REAL(KIND(0d0)) :: length !< Length of line source
+        REAL(KIND(0d0)) :: foc_length !< tranducer focal length for support = 5
+        REAL(KIND(0d0)) :: aperture !< transducer aperture length for support = 5
         REAL(KIND(0d0)) :: npulse !< Number of cycles of pulse
         REAL(KIND(0d0)) :: dir !< Direction of pulse
         REAL(KIND(0d0)) :: delay !< Time-delay of pulse start

@@ -1,15 +1,12 @@
 !>
 !! @file m_data_output.f90
 !! @brief Contains module m_data_output
-!! @author S. Bryngelson, K. Schimdmayer, V. Coralic, J. Meng, K. Maeda, T. Colonius
-!! @version 1.0
-!! @date JUNE 06 2019
 
 !> @brief This module takes care of writing the grid and initial condition
 !!              data files into the "0" time-step directory located in the folder
 !!              associated with the rank of the local processor, which is a sub-
 !!              directory of the case folder specified by the user in the input
-!!              file pre_process.inp.
+!!              file MFC_PreProcess.inp.
 MODULE m_data_output
     
     ! Dependencies =============================================================
@@ -141,7 +138,7 @@ MODULE m_data_output
             pi_inf = fluid_pp(1)%pi_inf
 
             IF (precision==1) THEN
-                FMT="(2F30.7)"
+                FMT="(2F30.3)"
             ELSE
                 FMT="(2F40.14)"
             END IF
@@ -155,8 +152,8 @@ MODULE m_data_output
 
             !1D
             IF (n ==0 .AND. p ==0) THEN
-                IF (model_eqns == 2) THEN
-                    DO i = 1, sys_size
+                IF ((model_eqns == 2) .OR. (model_eqns == 3)) THEN
+                    DO i = 1, sys_size+1
                         WRITE(file_loc,'(A,I0,A,I2.2,A,I6.6,A)') TRIM(t_step_dir) // '/prim.', i, '.', proc_rank, '.', t_step,'.dat'
 
                         OPEN(2,FILE= TRIM(file_loc) )
@@ -183,7 +180,10 @@ MODULE m_data_output
                                             (rhoref*(1.d0-q_cons_vf(4)%sf(j,0,0)))  & 
                                             ) ** lit_gamma )                        &
                                             - pi_inf
-                                    ELSE IF (model_eqns == 2 .AND. (bubbles .NEQV. .TRUE.)) THEN
+                                    ! For cases with initial tau_e nonzero, will need to add elastic contribution here:
+!                                   ELSE IF (hypoelasticity) THEN
+!                                       not yet implemented                                        
+                                    ELSE IF ((model_eqns==2 .OR. model_eqns==3) .AND. (bubbles .NEQV. .TRUE.)) THEN
                                         !Stiffened gas pressure from energy
                                         WRITE(2,FMT) x_cb(j), &
                                             (                                       & 
@@ -208,6 +208,9 @@ MODULE m_data_output
                                     CALL s_comp_n_from_cons( q_cons_vf(alf_idx)%sf(j,0,0), nRtmp, nbub)                                
                                     
                                     WRITE(2,FMT) x_cb(j),q_cons_vf(i)%sf(j,0,0)/nbub
+                                END IF
+                                IF (i==sys_size+1) THEN
+                                    WRITE(2,FMT) x_cb(j), rho
                                 END IF
                             END DO
                         CLOSE(2)
@@ -333,7 +336,8 @@ MODULE m_data_output
                             MPI_DOUBLE_PRECISION,status,ierr)
                 END DO
             ELSE
-                DO i = 1, adv_idx%end
+!                DO i = 1, adv_idx%end
+                DO i = 1, sys_size
                 var_MOK = INT(i, MPI_OFFSET_KIND)
 
                 ! Initial displacement to skip at beginning of file
